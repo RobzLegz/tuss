@@ -50,7 +50,20 @@ const waveEnemies = [
   [
     {
       enemy: "janka",
-      quantity: 5,
+      quantity: 6,
+      spawnDelay: 3,
+      speed: 30 * ratio,
+      hp: 3,
+      damage: 2,
+      reach: 30,
+      atckSpeed: 1,
+      reward: 9,
+    },
+  ],
+  [
+    {
+      enemy: "janka",
+      quantity: 2,
       spawnDelay: 3,
       speed: 30 * ratio,
       hp: 3,
@@ -69,6 +82,17 @@ const waveEnemies = [
       reach: 30,
       atckSpeed: 1,
       reward: 15,
+    },
+    {
+      enemy: "janka",
+      quantity: 2,
+      spawnDelay: 3,
+      speed: 30 * ratio,
+      hp: 3,
+      damage: 2,
+      reach: 30,
+      atckSpeed: 1,
+      reward: 9,
     },
   ],
 ];
@@ -216,7 +240,7 @@ const page = () => {
           }
         } else {
           // no target: move using existing simple pathing
-          if (p.y < 330 * ratio) {
+          if (p.y < 230 * ratio) {
             p.x = p.x - p.speed * ratio;
           } else if (p.x > 1600 * ratio) {
             p.y = p.y - p.speed * ratio;
@@ -248,7 +272,7 @@ const page = () => {
           }
         } else {
           // move
-          if (e.y > 1650 * ratio) {
+          if (e.y > 1450 * ratio) {
             e.x = e.x - e.speed * ratio;
           } else if (e.x > 1600 * ratio) {
             e.y = e.y + e.speed * ratio;
@@ -294,7 +318,7 @@ const page = () => {
             setStarted(false);
             setActivePlayerSprites([]);
             setActiveEnemySprites([]);
-            setWave((w) => w + 1);
+            setWave((w) => (w < waveEnemies.length ? w + 1 : w));
           }
           return next;
         });
@@ -309,20 +333,23 @@ const page = () => {
     };
   }, [started, activePlayerSprites, activeEnemySprites]);
 
-  // Schedule enemy spawns for the current wave respecting per-enemy spawnDelay and quantity
-  useEffect(() => {
-    if (!started) return;
-    // Clear any previous scheduled timeouts
+  const scheduleWaveSpawns = React.useCallback(() => {
+    // Clear any previous scheduled timeouts and existing enemies before scheduling
     for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
     enemySpawnTimeoutsRef.current = [];
+    setActiveEnemySprites([]);
 
-    const enemies = waveEnemies[wave - 1] || [];
+    const waveIndex = Math.max(1, Math.min(wave, waveEnemies.length)) - 1;
+    const enemies = waveEnemies[waveIndex] || [];
     let totalToSpawn = 0;
     for (const cfg of enemies) totalToSpawn += cfg.quantity ?? 0;
     setEnemiesRemaining(totalToSpawn);
+
+    let cumulativeDelayMs = 0;
     for (const cfg of enemies) {
-      const delayMs = Math.max(0, (cfg.spawnDelay ?? 0) * 1000);
+      const stepMs = Math.max(1, Math.floor((cfg.spawnDelay ?? 0) * 1000));
       for (let i = 0; i < (cfg.quantity ?? 0); i++) {
+        const scheduleAt = cumulativeDelayMs;
         const timeoutId = setTimeout(() => {
           setActiveEnemySprites((prev) => [
             ...prev,
@@ -342,15 +369,20 @@ const page = () => {
               nextAtkAt: 0,
             },
           ]);
-        }, i * delayMs) as unknown as number;
+        }, scheduleAt) as unknown as number;
         enemySpawnTimeoutsRef.current.push(timeoutId);
+        cumulativeDelayMs += stepMs;
       }
     }
+  }, [wave]);
 
-    return () => {
-      for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
-      enemySpawnTimeoutsRef.current = [];
-    };
+  // Reset trigger/cog animation state when not started or on wave change
+  useEffect(() => {
+    if (!started) {
+      setRotationAngles(Array.from({ length: 24 }).map(() => 0));
+      setSpecialSpinCounts(Array.from({ length: 24 }).map(() => 0));
+      setTriggerPhase(0);
+    }
   }, [started, wave]);
 
   // Advance trigger phase; on each phase, rotate triggers + impacted connected cogs by 90° clockwise
@@ -506,7 +538,10 @@ const page = () => {
           {!started && (
             <button
               className="bg-green-500 rounded-2xl px-4 py-2 cursor-pointer disabled:opacity-80"
-              onClick={() => setStarted(true)}
+              onClick={() => {
+                setStarted(true);
+                scheduleWaveSpawns();
+              }}
               disabled={wave === 1 && coins > 11}
             >
               Start
