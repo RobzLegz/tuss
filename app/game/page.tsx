@@ -54,6 +54,9 @@ const page = () => {
   const [rotationAngles, setRotationAngles] = useState<number[]>(
     Array.from({ length: 24 }).map(() => 0)
   );
+  const [specialSpinCounts, setSpecialSpinCounts] = useState<number[]>(
+    Array.from({ length: 24 }).map(() => 0)
+  );
   const [triggerPhase, setTriggerPhase] = useState<number>(0); // 0: down, 1: left, 2: up, 3: right
 
   React.useEffect(() => {
@@ -125,6 +128,21 @@ const page = () => {
       setRotationAngles((prev) => {
         const next = [...prev];
         for (const idx of toRotate) next[idx] = next[idx] + 90; // accumulate to avoid wrap glitches
+        return next;
+      });
+      // update special cog spin counts
+      setSpecialSpinCounts((prev) => {
+        const next = [...prev];
+        for (const idx of toRotate) {
+          const v = cells[idx];
+          const info = (cogValueMap as any)[v.toString()];
+          const points = info?.points as number | undefined;
+          if (points && points > 0) {
+            const current = next[idx] || 0;
+            const incremented = current + 1;
+            next[idx] = incremented >= points ? 0 : incremented;
+          }
+        }
         return next;
       });
     };
@@ -260,44 +278,52 @@ const page = () => {
             borderRadius: 50 * ratio,
           }}
         >
-          {cells.map((value, i) => (
-            <Cell
-              key={i}
-              value={value}
-              index={i}
-              rotationDeg={rotationAngles[i] || 0}
-              onDropCog={(cellIndex) => {
-                const droppedValue = draggingCogValue;
-                if (droppedValue === null) return;
-                const price =
-                  (
-                    cogValueMap[
-                      droppedValue.toString() as keyof typeof cogValueMap
-                    ] as any
-                  ).price ?? 0;
-                if (coins < price) {
+          {cells.map((value, i) => {
+            const info = (cogValueMap as any)[value.toString()];
+            const points = info?.points as number | undefined;
+            const count = specialSpinCounts[i] || 0;
+            const tintRatio =
+              points && points > 1 ? Math.min(1, count / (points - 1)) : 0;
+            return (
+              <Cell
+                key={i}
+                value={value}
+                index={i}
+                rotationDeg={rotationAngles[i] || 0}
+                tintRatio={tintRatio}
+                onDropCog={(cellIndex) => {
+                  const droppedValue = draggingCogValue;
+                  if (droppedValue === null) return;
+                  const price =
+                    (
+                      cogValueMap[
+                        droppedValue.toString() as keyof typeof cogValueMap
+                      ] as any
+                    ).price ?? 0;
+                  if (coins < price) {
+                    setDraggingCogValue(null);
+                    setDraggingShopIndex(null);
+                    return;
+                  }
+                  setCells((prev) =>
+                    prev.map((v, idx) => (idx === cellIndex ? droppedValue : v))
+                  );
+                  setCoins((prev) => Math.max(0, prev - price));
+                  if (draggingShopIndex !== null) {
+                    setWaveOptionUse((prev) => {
+                      const next = prev.length
+                        ? [...prev]
+                        : Array(waveOptionMap[wave - 1].length).fill(false);
+                      next[draggingShopIndex] = true;
+                      return next;
+                    });
+                  }
                   setDraggingCogValue(null);
                   setDraggingShopIndex(null);
-                  return;
-                }
-                setCells((prev) =>
-                  prev.map((v, idx) => (idx === cellIndex ? droppedValue : v))
-                );
-                setCoins((prev) => Math.max(0, prev - price));
-                if (draggingShopIndex !== null) {
-                  setWaveOptionUse((prev) => {
-                    const next = prev.length
-                      ? [...prev]
-                      : Array(waveOptionMap[wave - 1].length).fill(false);
-                    next[draggingShopIndex] = true;
-                    return next;
-                  });
-                }
-                setDraggingCogValue(null);
-                setDraggingShopIndex(null);
-              }}
-            />
-          ))}
+                }}
+              />
+            );
+          })}
         </div>
       </div>
     </div>
@@ -310,11 +336,13 @@ const Cell = ({
   index,
   value,
   rotationDeg,
+  tintRatio,
   onDropCog,
 }: {
   index: number;
   value: number;
   rotationDeg: number;
+  tintRatio: number;
   onDropCog: (index: number) => void;
 }) => {
   const [isOver, setIsOver] = React.useState(false);
@@ -356,6 +384,25 @@ const Cell = ({
             transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
             transformOrigin: "50% 50%",
             transition: "transform 0.35s ease-in-out",
+          }}
+        />
+      ) : null}
+      {value &&
+      (cogValueMap[value.toString() as keyof typeof cogValueMap] as any)
+        ?.points ? (
+        <div
+          className={"absolute w-full h-full pointer-events-none"}
+          style={{
+            width: 200 * ratio,
+            height: 200 * ratio,
+            pointerEvents: "none",
+            backgroundColor: `rgba(0, 255, 0, ${Math.max(
+              0,
+              Math.min(1, tintRatio)
+            )})`,
+            mixBlendMode: "color",
+            transition:
+              "background-color 0.35s ease-in-out, transform 0.35s ease-in-out",
           }}
         />
       ) : null}
