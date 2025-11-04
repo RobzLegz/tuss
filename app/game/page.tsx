@@ -1,17 +1,21 @@
 "use client";
 
 import Image from "next/image";
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const cogValueMap = {
   "-10": {
     file: "madars",
+    price: 12,
+    points: 5,
   },
   "1": {
     file: "cog",
+    price: 10,
   },
   "-1": {
     file: "trigger",
+    price: 0,
   },
 };
 
@@ -19,16 +23,42 @@ const waveOptionMap = [
   [-10, 1, -10],
   [1, 1, 1],
   [1, 1, 1],
-  [1, 1, 1],
+  [1, -10, 1],
+  [1, -10, 1],
 ];
 
 const ratio = 640 / 2000;
 
+const playerSpawnPosition = [(293 / 2) * ratio, 300 * ratio];
+const enemySpawnPosition = [393 * ratio, 300 * ratio];
+
+const waveEnemies = [
+  [{ enemy: "toms", quantity: 3, spawnDelay: 3, speed: 1, hp: 3, damage: 1 }],
+];
+
+const playerSpriteStats = { madars: { speed: 1, hp: 5, damage: 2 } };
+
 const page = () => {
   const [wave, setWave] = useState<number>(1);
+  const [coins, setCoins] = useState<number>(22);
+  const [started, setStarted] = useState(false);
   const [cells, setCells] = useState<number[]>(
     Array.from({ length: 24 }).map((_, i) => (i === 9 ? -1 : 0))
   );
+  const [draggingCogValue, setDraggingCogValue] = useState<number | null>(null);
+  const [draggingShopIndex, setDraggingShopIndex] = useState<number | null>(
+    null
+  );
+  const [waveOptionUse, setWaveOptionUse] = useState<boolean[]>([]);
+
+  React.useEffect(() => {
+    // Reset availability each wave (new round)
+    setWaveOptionUse(Array(waveOptionMap[wave - 1].length).fill(false));
+  }, [wave]);
+
+  useEffect(() => {
+    if (!started) return;
+  }, [started]);
 
   return (
     <div
@@ -39,8 +69,95 @@ const page = () => {
       }}
       className="w-full h-screen overflow-hidden flex items-center justify-start gap-8"
     >
-      <div className="flex flex-col w-80 h-full p-4">
-        <div className="w-full flex flex-col h-full bg-black/60 rounded-2xl"></div>
+      <div className="flex flex-col w-80 h-full p-4 gap-4">
+        <div className="w-full flex justify-between">
+          <div className="bg-black/60 rounded-2xl gap-2 px-4 py-2 flex items-center">
+            <Image
+              src="/resources/coin.png"
+              alt="cog"
+              width={20}
+              height={20}
+              className="w-6 h-6"
+            />
+
+            <strong>{coins}</strong>
+          </div>
+
+          {!started && (
+            <button
+              className="bg-green-500 rounded-2xl px-4 py-2 cursor-pointer disabled:opacity-80"
+              onClick={() => setStarted(true)}
+              disabled={wave === 1 && coins > 11}
+            >
+              Start
+            </button>
+          )}
+        </div>
+        {!started ? (
+          <div className="w-full flex flex-col flex-1 bg-black/60 rounded-2xl p-4 gap-4">
+            <strong>Shop</strong>
+            <div className="grid grid-cols-3 gap-4">
+              {waveOptionMap[wave - 1].map((value, i) => {
+                const cog =
+                  cogValueMap[value.toString() as keyof typeof cogValueMap];
+                const used = !!waveOptionUse[i];
+                const price = (cog as any).price ?? 0;
+                const canAfford = coins >= price;
+                return (
+                  <div
+                    key={i}
+                    className="flex flex-col items-center justify-center gap-2"
+                  >
+                    <div
+                      className={`${
+                        used || !canAfford
+                          ? "opacity-40 cursor-not-allowed"
+                          : "cursor-grab active:cursor-grabbing"
+                      } select-none`}
+                      draggable={!used && canAfford}
+                      onDragStart={(e) => {
+                        if (used || !canAfford) {
+                          e.preventDefault();
+                          return;
+                        }
+                        setDraggingCogValue(value);
+                        setDraggingShopIndex(i);
+                        try {
+                          e.dataTransfer.setData("text/plain", String(value));
+                        } catch {}
+                        try {
+                          e.dataTransfer.effectAllowed = "copy";
+                        } catch {}
+                      }}
+                      onDragEnd={() => {
+                        setDraggingCogValue(null);
+                        setDraggingShopIndex(null);
+                      }}
+                    >
+                      <Image
+                        src={`/resources/cogs/${cog.file}.png`}
+                        alt="cog"
+                        width={50}
+                        height={50}
+                        draggable={false}
+                      />
+                    </div>
+                    <div className="flex items-center justify-center">
+                      <Image
+                        src="/resources/coin.png"
+                        alt="cog"
+                        width={20}
+                        height={20}
+                        className="w-4 h-4"
+                      />
+                      <strong>{cog.price}</strong>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div
@@ -62,7 +179,41 @@ const page = () => {
           }}
         >
           {cells.map((value, i) => (
-            <Cell key={i} value={value} index={i} />
+            <Cell
+              key={i}
+              value={value}
+              index={i}
+              onDropCog={(cellIndex) => {
+                const droppedValue = draggingCogValue;
+                if (droppedValue === null) return;
+                const price =
+                  (
+                    cogValueMap[
+                      droppedValue.toString() as keyof typeof cogValueMap
+                    ] as any
+                  ).price ?? 0;
+                if (coins < price) {
+                  setDraggingCogValue(null);
+                  setDraggingShopIndex(null);
+                  return;
+                }
+                setCells((prev) =>
+                  prev.map((v, idx) => (idx === cellIndex ? droppedValue : v))
+                );
+                setCoins((prev) => Math.max(0, prev - price));
+                if (draggingShopIndex !== null) {
+                  setWaveOptionUse((prev) => {
+                    const next = prev.length
+                      ? [...prev]
+                      : Array(waveOptionMap[wave - 1].length).fill(false);
+                    next[draggingShopIndex] = true;
+                    return next;
+                  });
+                }
+                setDraggingCogValue(null);
+                setDraggingShopIndex(null);
+              }}
+            />
           ))}
         </div>
       </div>
@@ -72,11 +223,37 @@ const page = () => {
 
 export default page;
 
-const Cell = ({ index, value }: { index: number; value: number }) => {
+const Cell = ({
+  index,
+  value,
+  onDropCog,
+}: {
+  index: number;
+  value: number;
+  onDropCog: (index: number) => void;
+}) => {
+  const [isOver, setIsOver] = React.useState(false);
+
   return (
     <div
       id={`cell-${index}`}
-      className="w-full h-full border flex items-center justify-center relative border-black"
+      className={`w-full h-full border flex items-center justify-center relative border-black ${
+        isOver ? "bg-white/20 ring-4 ring-yellow-400" : ""
+      }`}
+      onDragOver={(e) => {
+        // Necessary to allow dropping
+        e.preventDefault();
+        try {
+          e.dataTransfer.dropEffect = "copy";
+        } catch {}
+      }}
+      onDragEnter={() => setIsOver(true)}
+      onDragLeave={() => setIsOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setIsOver(false);
+        onDropCog(index);
+      }}
     >
       {value ? (
         <Image
@@ -87,7 +264,7 @@ const Cell = ({ index, value }: { index: number; value: number }) => {
           alt="cog"
           width={100}
           height={100}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"
+          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
           style={{
             width: 200 * ratio,
             height: 200 * ratio,
