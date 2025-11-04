@@ -30,7 +30,7 @@ const waveOptionMap = [
 const ratio = 640 / 2000;
 const COLUMNS = 6;
 
-const playerSpawnPosition = [(293 / 2) * ratio, 250 * ratio];
+const playerSpawnPosition = [(293 / 2) * ratio, 1550 * ratio];
 const enemySpawnPosition = [100 * ratio, 200 * ratio];
 
 const waveEnemies = [
@@ -42,14 +42,39 @@ const waveEnemies = [
       speed: 30 * ratio,
       hp: 3,
       damage: 1,
-      reach: 10,
+      reach: 30,
       atckSpeed: 1,
+      reward: 9,
+    },
+  ],
+  [
+    {
+      enemy: "janka",
+      quantity: 5,
+      spawnDelay: 3,
+      speed: 30 * ratio,
+      hp: 3,
+      damage: 2,
+      reach: 30,
+      atckSpeed: 1,
+      reward: 9,
+    },
+    {
+      enemy: "zirnis",
+      quantity: 2,
+      spawnDelay: 3,
+      speed: 30 * ratio,
+      hp: 10,
+      damage: 2,
+      reach: 30,
+      atckSpeed: 1,
+      reward: 15,
     },
   ],
 ];
 
 const playerSpriteStats = {
-  madars: { speed: 30 * ratio, hp: 5, damage: 2, reach: 10, atckSpeed: 1 },
+  madars: { speed: 30 * ratio, hp: 5, damage: 2, reach: 30, atckSpeed: 1 },
 };
 
 const page = () => {
@@ -72,6 +97,7 @@ const page = () => {
   );
   const spawnBufferRef = React.useRef<string[]>([]);
   const enemySpawnTimeoutsRef = React.useRef<number[]>([]);
+  const [enemiesRemaining, setEnemiesRemaining] = useState<number>(0);
   const [activeEnemySprites, setActiveEnemySprites] = useState<
     {
       sprite: string;
@@ -100,6 +126,9 @@ const page = () => {
     }[]
   >([]);
 
+  const playerIdRef = React.useRef(0);
+  const enemyIdRef = React.useRef(0);
+
   React.useEffect(() => {
     // Reset availability each wave (new round)
     setWaveOptionUse(Array(waveOptionMap[wave - 1].length).fill(false));
@@ -111,53 +140,172 @@ const page = () => {
 
     const id = setInterval(() => {
       const nextActivePlayerSprites = activePlayerSprites.map((sprite) => {
-        if (sprite.y > 1650 * ratio) {
-          return {
-            ...sprite,
-            x: sprite.x - sprite.speed * ratio,
-          };
-        }
-        if (sprite.x > 1600 * ratio) {
-          return {
-            ...sprite,
-            y: sprite.y + sprite.speed * ratio,
-          };
-        }
-
-        return {
-          ...sprite,
-          x: sprite.x + sprite.speed * ratio,
-        };
+        return { ...sprite };
       });
-      setActivePlayerSprites(nextActivePlayerSprites);
-    }, MOVE_INTERVAL_MS);
+      // Clone enemies
+      const nextActiveEnemies = activeEnemySprites.map((sprite) => ({
+        ...sprite,
+      }));
 
-    const enemyId = setInterval(() => {
-      const nextEnemySprites = activeEnemySprites.map((sprite) => {
-        if (sprite.y > 1650 * ratio) {
-          return {
-            ...sprite,
-            x: sprite.x - sprite.speed * ratio,
-          };
-        }
-        if (sprite.x > 1600 * ratio) {
-          return {
-            ...sprite,
-            y: sprite.y + sprite.speed * ratio,
-          };
-        }
+      // Build id maps (we'll synthesize ids if missing)
+      const now = performance.now();
 
-        return {
-          ...sprite,
-          x: sprite.x + sprite.speed * ratio,
-        };
+      // Ensure ids and maxHp exist
+      nextActivePlayerSprites.forEach((p) => {
+        // @ts-ignore
+        if (!(p as any).id) (p as any).id = `p-${++playerIdRef.current}`;
+        // @ts-ignore
+        if (!(p as any).maxHp) (p as any).maxHp = p.hp;
+        // @ts-ignore
+        if ((p as any).targetId === undefined) (p as any).targetId = null;
+        // @ts-ignore
+        if ((p as any).nextAtkAt === undefined) (p as any).nextAtkAt = 0;
       });
-      setActiveEnemySprites(nextEnemySprites);
+      nextActiveEnemies.forEach((e) => {
+        // @ts-ignore
+        if (!(e as any).id) (e as any).id = `e-${++enemyIdRef.current}`;
+        // @ts-ignore
+        if (!(e as any).maxHp) (e as any).maxHp = e.hp;
+        // @ts-ignore
+        if ((e as any).targetId === undefined) (e as any).targetId = null;
+        // @ts-ignore
+        if ((e as any).nextAtkAt === undefined) (e as any).nextAtkAt = 0;
+      });
+
+      const playersById: Record<string, any> = Object.fromEntries(
+        nextActivePlayerSprites.map((p: any) => [p.id, p])
+      );
+      const enemiesById: Record<string, any> = Object.fromEntries(
+        nextActiveEnemies.map((e: any) => [e.id, e])
+      );
+
+      const damageToPlayers: Record<string, number> = {};
+      const damageToEnemies: Record<string, number> = {};
+
+      const inReach = (
+        ax: number,
+        ay: number,
+        bx: number,
+        by: number,
+        reach: number
+      ) => {
+        return Math.abs(ax - bx) <= reach && Math.abs(ay - by) <= reach;
+      };
+
+      // Acquire targets and move/attack for players
+      for (const p of nextActivePlayerSprites as any[]) {
+        let targetId = p.targetId as string | null;
+        let target = targetId ? enemiesById[targetId] : null;
+        if (!target || !inReach(p.x, p.y, target.x, target.y, p.reach)) {
+          // find a new target within reach
+          target = null;
+          for (const e of nextActiveEnemies as any[]) {
+            if (inReach(p.x, p.y, e.x, e.y, p.reach)) {
+              target = e;
+              break;
+            }
+          }
+          p.targetId = target ? target.id : null;
+        }
+        if (p.targetId && target) {
+          // stop movement and attack if ready
+          if (now >= (p.nextAtkAt as number)) {
+            damageToEnemies[target.id] =
+              (damageToEnemies[target.id] || 0) + p.damage;
+            p.nextAtkAt = now + 1000 / Math.max(0.001, p.atckSpeed);
+          }
+        } else {
+          // no target: move using existing simple pathing
+          if (p.y < 330 * ratio) {
+            p.x = p.x - p.speed * ratio;
+          } else if (p.x > 1600 * ratio) {
+            p.y = p.y - p.speed * ratio;
+          } else {
+            p.x = p.x + p.speed * ratio;
+          }
+        }
+      }
+
+      // Acquire targets and move/attack for enemies
+      for (const e of nextActiveEnemies as any[]) {
+        let targetId = e.targetId as string | null;
+        let target = targetId ? playersById[targetId] : null;
+        if (!target || !inReach(e.x, e.y, target.x, target.y, e.reach)) {
+          target = null;
+          for (const p of nextActivePlayerSprites as any[]) {
+            if (inReach(e.x, e.y, p.x, p.y, e.reach)) {
+              target = p;
+              break;
+            }
+          }
+          e.targetId = target ? target.id : null;
+        }
+        if (e.targetId && target) {
+          if (now >= (e.nextAtkAt as number)) {
+            damageToPlayers[target.id] =
+              (damageToPlayers[target.id] || 0) + e.damage;
+            e.nextAtkAt = now + 1000 / Math.max(0.001, e.atckSpeed);
+          }
+        } else {
+          // move
+          if (e.y > 1650 * ratio) {
+            e.x = e.x - e.speed * ratio;
+          } else if (e.x > 1600 * ratio) {
+            e.y = e.y + e.speed * ratio;
+          } else {
+            e.x = e.x + e.speed * ratio;
+          }
+        }
+      }
+
+      // Apply pending damage
+      for (const [enemyId, dmg] of Object.entries(damageToEnemies)) {
+        const e = enemiesById[enemyId];
+        if (e) e.hp = Math.max(0, e.hp - dmg);
+      }
+      for (const [playerId, dmg] of Object.entries(damageToPlayers)) {
+        const p = playersById[playerId];
+        if (p) p.hp = Math.max(0, p.hp - dmg);
+      }
+
+      // Remove dead and clear target pointers to dead
+      const deadEnemies = nextActiveEnemies.filter((e: any) => e.hp <= 0);
+      const aliveEnemies = nextActiveEnemies.filter((e: any) => e.hp > 0);
+      const aliveEnemyIds = new Set(aliveEnemies.map((e: any) => e.id));
+      nextActivePlayerSprites.forEach((p: any) => {
+        if (p.targetId && !aliveEnemyIds.has(p.targetId)) p.targetId = null;
+      });
+      const alivePlayers = nextActivePlayerSprites.filter((p: any) => p.hp > 0);
+      const alivePlayerIds = new Set(alivePlayers.map((p: any) => p.id));
+      aliveEnemies.forEach((e: any) => {
+        if (e.targetId && !alivePlayerIds.has(e.targetId)) e.targetId = null;
+      });
+
+      // Award coins for kills and progress wave
+      if (deadEnemies.length) {
+        const gained = deadEnemies.reduce(
+          (sum: number, e: any) => sum + (e.reward ?? 0),
+          0
+        );
+        if (gained) setCoins((prev) => prev + gained);
+        setEnemiesRemaining((prev) => {
+          const next = Math.max(0, prev - deadEnemies.length);
+          if (next === 0) {
+            setStarted(false);
+            setActivePlayerSprites([]);
+            setActiveEnemySprites([]);
+            setWave((w) => w + 1);
+          }
+          return next;
+        });
+      }
+
+      setActivePlayerSprites(alivePlayers);
+      setActiveEnemySprites(aliveEnemies);
     }, MOVE_INTERVAL_MS);
 
     return () => {
       clearInterval(id);
-      clearInterval(enemyId);
     };
   }, [started, activePlayerSprites, activeEnemySprites]);
 
@@ -169,6 +317,9 @@ const page = () => {
     enemySpawnTimeoutsRef.current = [];
 
     const enemies = waveEnemies[wave - 1] || [];
+    let totalToSpawn = 0;
+    for (const cfg of enemies) totalToSpawn += cfg.quantity ?? 0;
+    setEnemiesRemaining(totalToSpawn);
     for (const cfg of enemies) {
       const delayMs = Math.max(0, (cfg.spawnDelay ?? 0) * 1000);
       for (let i = 0; i < (cfg.quantity ?? 0); i++) {
@@ -176,14 +327,19 @@ const page = () => {
           setActiveEnemySprites((prev) => [
             ...prev,
             {
+              id: `e-${++enemyIdRef.current}`,
               sprite: cfg.enemy,
               x: enemySpawnPosition[0],
               y: enemySpawnPosition[1],
               speed: cfg.speed,
               hp: cfg.hp,
+              maxHp: cfg.hp,
               damage: cfg.damage,
               reach: cfg.reach,
               atckSpeed: cfg.atckSpeed,
+              reward: cfg.reward,
+              targetId: null,
+              nextAtkAt: 0,
             },
           ]);
         }, i * delayMs) as unknown as number;
@@ -287,12 +443,15 @@ const page = () => {
         setActivePlayerSprites((prev) => [
           ...prev,
           ...toSpawn.map((sprite) => ({
+            id: `p-${++playerIdRef.current}`,
             sprite,
             x: playerSpawnPosition[0],
             y: playerSpawnPosition[1],
             speed:
               playerSpriteStats[sprite as keyof typeof playerSpriteStats].speed,
             hp: playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
+            maxHp:
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
             damage:
               playerSpriteStats[sprite as keyof typeof playerSpriteStats]
                 .damage,
@@ -301,6 +460,8 @@ const page = () => {
             atckSpeed:
               playerSpriteStats[sprite as keyof typeof playerSpriteStats]
                 .atckSpeed,
+            targetId: null,
+            nextAtkAt: 0,
           })),
         ]);
       }
@@ -445,6 +606,35 @@ const page = () => {
             }}
           />
         ))}
+        {activeEnemySprites.map((sprite, i) =>
+          sprite.hp < (sprite as any).maxHp ? (
+            <div
+              key={`enemy-hp-${i}`}
+              className="absolute"
+              style={{
+                width: 50 * ratio,
+                height: 6,
+                top: sprite.y - 8,
+                right: sprite.x,
+                zIndex: 19,
+                backgroundColor: "rgba(0,0,0,0.4)",
+              }}
+            >
+              <div
+                style={{
+                  width:
+                    Math.max(
+                      0,
+                      Math.min(1, sprite.hp / (sprite as any).maxHp)
+                    ) *
+                    (50 * ratio),
+                  height: 6,
+                  backgroundColor: "red",
+                }}
+              />
+            </div>
+          ) : null
+        )}
         {activePlayerSprites.map((sprite, i) => (
           <Image
             key={i}
@@ -456,13 +646,42 @@ const page = () => {
             style={{
               width: 200 * ratio,
               height: 200 * ratio,
-              bottom: sprite.y,
+              top: sprite.y,
               right: sprite.x,
               zIndex: 20,
               pointerEvents: "none",
             }}
           />
         ))}
+        {activePlayerSprites.map((sprite, i) =>
+          (sprite as any).maxHp && sprite.hp < (sprite as any).maxHp ? (
+            <div
+              key={`player-hp-${i}`}
+              className="absolute"
+              style={{
+                width: 50 * ratio,
+                height: 6,
+                top: sprite.y - 8,
+                right: sprite.x,
+                zIndex: 21,
+                backgroundColor: "rgba(0,0,0,0.4)",
+              }}
+            >
+              <div
+                style={{
+                  width:
+                    Math.max(
+                      0,
+                      Math.min(1, sprite.hp / (sprite as any).maxHp)
+                    ) *
+                    (50 * ratio),
+                  height: 6,
+                  backgroundColor: "#22c55e",
+                }}
+              />
+            </div>
+          ) : null
+        )}
         <div
           className="absolute bg-red-500/50 border-2 border-black grid grid-cols-6 overflow-hidden"
           style={{
