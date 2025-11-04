@@ -51,9 +51,10 @@ const page = () => {
     null
   );
   const [waveOptionUse, setWaveOptionUse] = useState<boolean[]>([]);
-  const [spinning, setSpinning] = useState<boolean[]>(
-    Array.from({ length: 24 }).map(() => false)
+  const [rotationAngles, setRotationAngles] = useState<number[]>(
+    Array.from({ length: 24 }).map(() => 0)
   );
+  const [triggerPhase, setTriggerPhase] = useState<number>(0); // 0: down, 1: left, 2: up, 3: right
 
   React.useEffect(() => {
     // Reset availability each wave (new round)
@@ -64,53 +65,73 @@ const page = () => {
     if (!started) return;
   }, [started]);
 
+  // Advance trigger phase; on each phase, rotate triggers + impacted connected cogs by 90° clockwise
   useEffect(() => {
-    if (!started) {
-      setSpinning(Array.from({ length: cells.length }).map(() => false));
-      return;
-    }
+    if (!started) return;
+
     const total = cells.length;
-    const getNeighbors = (idx: number) => {
-      const neighbors: number[] = [];
-      const row = Math.floor(idx / COLUMNS);
+    const rows = Math.floor((total - 1) / COLUMNS) + 1;
+    const rowOf = (idx: number) => Math.floor(idx / COLUMNS);
+
+    const getDirectionalNeighbor = (idx: number, phase: number) => {
+      const row = rowOf(idx);
       const col = idx % COLUMNS;
-      if (row > 0) neighbors.push(idx - COLUMNS); // up
-      if (row < Math.floor((total - 1) / COLUMNS)) neighbors.push(idx + COLUMNS); // down
-      if (col > 0) neighbors.push(idx - 1); // left
-      if (col < COLUMNS - 1) neighbors.push(idx + 1); // right
-      return neighbors;
+      if (phase === 0) return row < rows - 1 ? idx + COLUMNS : -1; // down
+      if (phase === 1) return col > 0 ? idx - 1 : -1; // left
+      if (phase === 2) return row > 0 ? idx - COLUMNS : -1; // up
+      return col < COLUMNS - 1 ? idx + 1 : -1; // right
     };
 
-    const starts: number[] = [];
-    for (let i = 0; i < total; i++) {
-      if (cells[i] === -1) starts.push(i);
-    }
+    const rotateStep = (phaseForStep: number) => {
+      const toRotate = new Set<number>();
 
-    if (starts.length === 0) {
-      setSpinning(Array.from({ length: total }).map(() => false));
-      return;
-    }
+      // Triggers always rotate
+      const triggers: number[] = [];
+      for (let i = 0; i < total; i++) if (cells[i] === -1) { triggers.push(i); toRotate.add(i); }
 
-    const visited = Array.from({ length: total }).map(() => false);
-    const queue: number[] = [];
-    for (const s of starts) {
-      visited[s] = true;
-      queue.push(s);
-    }
-
-    while (queue.length) {
-      const current = queue.shift() as number;
-      const neighbors = getNeighbors(current);
-      for (const n of neighbors) {
-        if (!visited[n] && cells[n] !== 0) {
-          visited[n] = true;
-          queue.push(n);
+      // BFS from the impacted neighbor for each trigger
+      for (const t of triggers) {
+        const neighbor = getDirectionalNeighbor(t, phaseForStep);
+        if (neighbor < 0) continue;
+        if (cells[neighbor] === 0) continue;
+        const visited = Array.from({ length: total }).map(() => false);
+        const queue: number[] = [neighbor];
+        visited[neighbor] = true;
+        while (queue.length) {
+          const cur = queue.shift() as number;
+          toRotate.add(cur);
+          const r = rowOf(cur);
+          const c = cur % COLUMNS;
+          const neighbors = [
+            r > 0 ? cur - COLUMNS : -1,
+            r < rows - 1 ? cur + COLUMNS : -1,
+            c > 0 ? cur - 1 : -1,
+            c < COLUMNS - 1 ? cur + 1 : -1,
+          ].filter((n) => n >= 0 && cells[n] !== 0) as number[];
+          for (const n of neighbors) if (!visited[n]) { visited[n] = true; queue.push(n); }
         }
       }
-    }
 
-    setSpinning(visited);
-  }, [cells, started]);
+      if (toRotate.size === 0) return;
+      setRotationAngles((prev) => {
+        const next = [...prev];
+        for (const idx of toRotate) next[idx] = next[idx] + 90; // accumulate to avoid wrap glitches
+        return next;
+      });
+    };
+
+    const PHASE_INTERVAL_MS = 600;
+    let phase = 0; // start from 'down' consistently
+    setTriggerPhase(phase);
+    // initial step
+    rotateStep(phase);
+    const id = setInterval(() => {
+      phase = (phase + 1) % 4;
+      setTriggerPhase(phase);
+      rotateStep(phase);
+    }, PHASE_INTERVAL_MS);
+    return () => clearInterval(id);
+  }, [started, cells]);
 
   return (
     <div
@@ -235,7 +256,7 @@ const page = () => {
               key={i}
               value={value}
               index={i}
-              isSpinning={!!spinning[i]}
+              rotationDeg={rotationAngles[i] || 0}
               onDropCog={(cellIndex) => {
                 const droppedValue = draggingCogValue;
                 if (droppedValue === null) return;
@@ -279,12 +300,12 @@ export default page;
 const Cell = ({
   index,
   value,
-  isSpinning,
+  rotationDeg,
   onDropCog,
 }: {
   index: number;
   value: number;
-  isSpinning: boolean;
+  rotationDeg: number;
   onDropCog: (index: number) => void;
 }) => {
   const [isOver, setIsOver] = React.useState(false);
@@ -319,12 +340,13 @@ const Cell = ({
           alt="cog"
           width={100}
           height={100}
-          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
-            isSpinning ? "animate-spin" : ""
-          }`}
+          className={"absolute top-1/2 left-1/2 pointer-events-none"}
           style={{
             width: 200 * ratio,
             height: 200 * ratio,
+            transform: `translate(-50%, -50%) rotate(${rotationDeg}deg)`,
+            transformOrigin: "50% 50%",
+            transition: "transform 0.35s ease-in-out",
           }}
         />
       ) : null}
