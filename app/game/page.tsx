@@ -7,7 +7,7 @@ const cogValueMap = {
   "-10": {
     file: "madars",
     price: 12,
-    points: 5,
+    points: 3,
   },
   "1": {
     file: "cog",
@@ -30,14 +30,27 @@ const waveOptionMap = [
 const ratio = 640 / 2000;
 const COLUMNS = 6;
 
-const playerSpawnPosition = [(293 / 2) * ratio, 300 * ratio];
-const enemySpawnPosition = [393 * ratio, 300 * ratio];
+const playerSpawnPosition = [(293 / 2) * ratio, 250 * ratio];
+const enemySpawnPosition = [100 * ratio, 200 * ratio];
 
 const waveEnemies = [
-  [{ enemy: "toms", quantity: 3, spawnDelay: 3, speed: 1, hp: 3, damage: 1 }],
+  [
+    {
+      enemy: "janka",
+      quantity: 3,
+      spawnDelay: 3,
+      speed: 30 * ratio,
+      hp: 3,
+      damage: 1,
+      reach: 10,
+      atckSpeed: 1,
+    },
+  ],
 ];
 
-const playerSpriteStats = { madars: { speed: 1, hp: 5, damage: 2 } };
+const playerSpriteStats = {
+  madars: { speed: 30 * ratio, hp: 5, damage: 2, reach: 10, atckSpeed: 1 },
+};
 
 const page = () => {
   const [wave, setWave] = useState<number>(1);
@@ -57,7 +70,35 @@ const page = () => {
   const [specialSpinCounts, setSpecialSpinCounts] = useState<number[]>(
     Array.from({ length: 24 }).map(() => 0)
   );
+  const spawnBufferRef = React.useRef<string[]>([]);
+  const enemySpawnTimeoutsRef = React.useRef<number[]>([]);
+  const [activeEnemySprites, setActiveEnemySprites] = useState<
+    {
+      sprite: string;
+      x: number;
+      y: number;
+      speed: number;
+      hp: number;
+      damage: number;
+      reach: number;
+      atckSpeed: number;
+    }[]
+  >([]);
+
   const [triggerPhase, setTriggerPhase] = useState<number>(0); // 0: down, 1: left, 2: up, 3: right
+
+  const [activePlayerSprites, setActivePlayerSprites] = useState<
+    {
+      sprite: string;
+      x: number;
+      y: number;
+      speed: number;
+      hp: number;
+      damage: number;
+      reach: number;
+      atckSpeed: number;
+    }[]
+  >([]);
 
   React.useEffect(() => {
     // Reset availability each wave (new round)
@@ -66,7 +107,95 @@ const page = () => {
 
   useEffect(() => {
     if (!started) return;
-  }, [started]);
+    const MOVE_INTERVAL_MS = 100;
+
+    const id = setInterval(() => {
+      const nextActivePlayerSprites = activePlayerSprites.map((sprite) => {
+        if (sprite.y > 1650 * ratio) {
+          return {
+            ...sprite,
+            x: sprite.x - sprite.speed * ratio,
+          };
+        }
+        if (sprite.x > 1600 * ratio) {
+          return {
+            ...sprite,
+            y: sprite.y + sprite.speed * ratio,
+          };
+        }
+
+        return {
+          ...sprite,
+          x: sprite.x + sprite.speed * ratio,
+        };
+      });
+      setActivePlayerSprites(nextActivePlayerSprites);
+    }, MOVE_INTERVAL_MS);
+
+    const enemyId = setInterval(() => {
+      const nextEnemySprites = activeEnemySprites.map((sprite) => {
+        if (sprite.y > 1650 * ratio) {
+          return {
+            ...sprite,
+            x: sprite.x - sprite.speed * ratio,
+          };
+        }
+        if (sprite.x > 1600 * ratio) {
+          return {
+            ...sprite,
+            y: sprite.y + sprite.speed * ratio,
+          };
+        }
+
+        return {
+          ...sprite,
+          x: sprite.x + sprite.speed * ratio,
+        };
+      });
+      setActiveEnemySprites(nextEnemySprites);
+    }, MOVE_INTERVAL_MS);
+
+    return () => {
+      clearInterval(id);
+      clearInterval(enemyId);
+    };
+  }, [started, activePlayerSprites, activeEnemySprites]);
+
+  // Schedule enemy spawns for the current wave respecting per-enemy spawnDelay and quantity
+  useEffect(() => {
+    if (!started) return;
+    // Clear any previous scheduled timeouts
+    for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
+    enemySpawnTimeoutsRef.current = [];
+
+    const enemies = waveEnemies[wave - 1] || [];
+    for (const cfg of enemies) {
+      const delayMs = Math.max(0, (cfg.spawnDelay ?? 0) * 1000);
+      for (let i = 0; i < (cfg.quantity ?? 0); i++) {
+        const timeoutId = setTimeout(() => {
+          setActiveEnemySprites((prev) => [
+            ...prev,
+            {
+              sprite: cfg.enemy,
+              x: enemySpawnPosition[0],
+              y: enemySpawnPosition[1],
+              speed: cfg.speed,
+              hp: cfg.hp,
+              damage: cfg.damage,
+              reach: cfg.reach,
+              atckSpeed: cfg.atckSpeed,
+            },
+          ]);
+        }, i * delayMs) as unknown as number;
+        enemySpawnTimeoutsRef.current.push(timeoutId);
+      }
+    }
+
+    return () => {
+      for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
+      enemySpawnTimeoutsRef.current = [];
+    };
+  }, [started, wave]);
 
   // Advance trigger phase; on each phase, rotate triggers + impacted connected cogs by 90° clockwise
   useEffect(() => {
@@ -130,21 +259,51 @@ const page = () => {
         for (const idx of toRotate) next[idx] = next[idx] + 90; // accumulate to avoid wrap glitches
         return next;
       });
-      // update special cog spin counts
+
+      // update special cog spin counts and collect spawns using a ref buffer
       setSpecialSpinCounts((prev) => {
         const next = [...prev];
+        const localSpawns: string[] = [];
         for (const idx of toRotate) {
           const v = cells[idx];
-          const info = (cogValueMap as any)[v.toString()];
+          const info = (cogValueMap as any)[
+            v.toString() as keyof typeof cogValueMap
+          ];
           const points = info?.points as number | undefined;
           if (points && points > 0) {
             const current = next[idx] || 0;
             const incremented = current + 1;
             next[idx] = incremented >= points ? 0 : incremented;
+            if (incremented >= points) localSpawns.push(info.file);
           }
         }
+        spawnBufferRef.current = localSpawns;
         return next;
       });
+
+      const toSpawn = spawnBufferRef.current;
+      if (toSpawn && toSpawn.length) {
+        spawnBufferRef.current = [];
+        setActivePlayerSprites((prev) => [
+          ...prev,
+          ...toSpawn.map((sprite) => ({
+            sprite,
+            x: playerSpawnPosition[0],
+            y: playerSpawnPosition[1],
+            speed:
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats].speed,
+            hp: playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
+            damage:
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                .damage,
+            reach:
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats].reach,
+            atckSpeed:
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                .atckSpeed,
+          })),
+        ]);
+      }
     };
 
     const PHASE_INTERVAL_MS = 600;
@@ -268,6 +427,42 @@ const page = () => {
           backgroundPosition: "center",
         }}
       >
+        {activeEnemySprites.map((sprite, i) => (
+          <Image
+            key={`enemy-${i}`}
+            src={`/resources/sprites/${sprite.sprite}.png`}
+            alt="enemy"
+            width={200}
+            height={200}
+            className="object-contain absolute"
+            style={{
+              width: 200 * ratio,
+              height: 200 * ratio,
+              top: sprite.y,
+              right: sprite.x,
+              zIndex: 18,
+              pointerEvents: "none",
+            }}
+          />
+        ))}
+        {activePlayerSprites.map((sprite, i) => (
+          <Image
+            key={i}
+            src={`/resources/sprites/${sprite.sprite}.png`}
+            alt="sprite"
+            width={200}
+            height={200}
+            className="object-contain absolute"
+            style={{
+              width: 200 * ratio,
+              height: 200 * ratio,
+              bottom: sprite.y,
+              right: sprite.x,
+              zIndex: 20,
+              pointerEvents: "none",
+            }}
+          />
+        ))}
         <div
           className="absolute bg-red-500/50 border-2 border-black grid grid-cols-6 overflow-hidden"
           style={{
