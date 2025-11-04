@@ -72,6 +72,7 @@ const page = () => {
     const total = cells.length;
     const rows = Math.floor((total - 1) / COLUMNS) + 1;
     const rowOf = (idx: number) => Math.floor(idx / COLUMNS);
+    const isCogValue = (v: number) => v !== 0 && v !== -1; // any non-empty non-trigger piece is a cog
 
     const getDirectionalNeighbor = (idx: number, phase: number) => {
       const row = rowOf(idx);
@@ -87,19 +88,23 @@ const page = () => {
 
       // Triggers always rotate
       const triggers: number[] = [];
-      for (let i = 0; i < total; i++) if (cells[i] === -1) { triggers.push(i); toRotate.add(i); }
+      for (let i = 0; i < total; i++)
+        if (cells[i] === -1) {
+          triggers.push(i);
+          toRotate.add(i);
+        }
 
       // BFS from the impacted neighbor for each trigger
       for (const t of triggers) {
         const neighbor = getDirectionalNeighbor(t, phaseForStep);
         if (neighbor < 0) continue;
-        if (cells[neighbor] === 0) continue;
+        if (!isCogValue(cells[neighbor])) continue; // start only from a cog
         const visited = Array.from({ length: total }).map(() => false);
         const queue: number[] = [neighbor];
         visited[neighbor] = true;
         while (queue.length) {
           const cur = queue.shift() as number;
-          toRotate.add(cur);
+          toRotate.add(cur); // cur is a cog by construction
           const r = rowOf(cur);
           const c = cur % COLUMNS;
           const neighbors = [
@@ -107,8 +112,12 @@ const page = () => {
             r < rows - 1 ? cur + COLUMNS : -1,
             c > 0 ? cur - 1 : -1,
             c < COLUMNS - 1 ? cur + 1 : -1,
-          ].filter((n) => n >= 0 && cells[n] !== 0) as number[];
-          for (const n of neighbors) if (!visited[n]) { visited[n] = true; queue.push(n); }
+          ].filter((n) => n >= 0 && isCogValue(cells[n])) as number[]; // traverse only through cogs
+          for (const n of neighbors)
+            if (!visited[n]) {
+              visited[n] = true;
+              queue.push(n);
+            }
         }
       }
 
