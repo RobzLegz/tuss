@@ -28,6 +28,7 @@ const waveOptionMap = [
 ];
 
 const ratio = 640 / 2000;
+const COLUMNS = 6;
 
 const playerSpawnPosition = [(293 / 2) * ratio, 300 * ratio];
 const enemySpawnPosition = [393 * ratio, 300 * ratio];
@@ -50,6 +51,9 @@ const page = () => {
     null
   );
   const [waveOptionUse, setWaveOptionUse] = useState<boolean[]>([]);
+  const [spinning, setSpinning] = useState<boolean[]>(
+    Array.from({ length: 24 }).map(() => false)
+  );
 
   React.useEffect(() => {
     // Reset availability each wave (new round)
@@ -59,6 +63,54 @@ const page = () => {
   useEffect(() => {
     if (!started) return;
   }, [started]);
+
+  useEffect(() => {
+    if (!started) {
+      setSpinning(Array.from({ length: cells.length }).map(() => false));
+      return;
+    }
+    const total = cells.length;
+    const getNeighbors = (idx: number) => {
+      const neighbors: number[] = [];
+      const row = Math.floor(idx / COLUMNS);
+      const col = idx % COLUMNS;
+      if (row > 0) neighbors.push(idx - COLUMNS); // up
+      if (row < Math.floor((total - 1) / COLUMNS)) neighbors.push(idx + COLUMNS); // down
+      if (col > 0) neighbors.push(idx - 1); // left
+      if (col < COLUMNS - 1) neighbors.push(idx + 1); // right
+      return neighbors;
+    };
+
+    const starts: number[] = [];
+    for (let i = 0; i < total; i++) {
+      if (cells[i] === -1) starts.push(i);
+    }
+
+    if (starts.length === 0) {
+      setSpinning(Array.from({ length: total }).map(() => false));
+      return;
+    }
+
+    const visited = Array.from({ length: total }).map(() => false);
+    const queue: number[] = [];
+    for (const s of starts) {
+      visited[s] = true;
+      queue.push(s);
+    }
+
+    while (queue.length) {
+      const current = queue.shift() as number;
+      const neighbors = getNeighbors(current);
+      for (const n of neighbors) {
+        if (!visited[n] && cells[n] !== 0) {
+          visited[n] = true;
+          queue.push(n);
+        }
+      }
+    }
+
+    setSpinning(visited);
+  }, [cells, started]);
 
   return (
     <div
@@ -183,6 +235,7 @@ const page = () => {
               key={i}
               value={value}
               index={i}
+              isSpinning={!!spinning[i]}
               onDropCog={(cellIndex) => {
                 const droppedValue = draggingCogValue;
                 if (droppedValue === null) return;
@@ -226,10 +279,12 @@ export default page;
 const Cell = ({
   index,
   value,
+  isSpinning,
   onDropCog,
 }: {
   index: number;
   value: number;
+  isSpinning: boolean;
   onDropCog: (index: number) => void;
 }) => {
   const [isOver, setIsOver] = React.useState(false);
@@ -264,7 +319,9 @@ const Cell = ({
           alt="cog"
           width={100}
           height={100}
-          className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none"
+          className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none ${
+            isSpinning ? "animate-spin" : ""
+          }`}
           style={{
             width: 200 * ratio,
             height: 200 * ratio,
