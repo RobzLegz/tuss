@@ -135,6 +135,16 @@ const page = () => {
     }[]
   >([]);
 
+  // Keep refs in sync for smoother intervals without recreating
+  const activePlayerSpritesRef = React.useRef<typeof activePlayerSprites>([]);
+  const activeEnemySpritesRef = React.useRef<typeof activeEnemySprites>([]);
+  useEffect(() => {
+    activePlayerSpritesRef.current = activePlayerSprites;
+  }, [activePlayerSprites]);
+  useEffect(() => {
+    activeEnemySpritesRef.current = activeEnemySprites;
+  }, [activeEnemySprites]);
+
   const playerIdRef = React.useRef(0);
   const enemyIdRef = React.useRef(0);
 
@@ -218,11 +228,11 @@ const page = () => {
     const MOVE_INTERVAL_MS = 100;
 
     const id = setInterval(() => {
-      const nextActivePlayerSprites = activePlayerSprites.map((sprite) => {
+      const nextActivePlayerSprites = activePlayerSpritesRef.current.map((sprite) => {
         return { ...sprite };
       });
       // Clone enemies
-      const nextActiveEnemies = activeEnemySprites.map((sprite) => ({
+      const nextActiveEnemies = activeEnemySpritesRef.current.map((sprite) => ({
         ...sprite,
       }));
 
@@ -389,6 +399,8 @@ const page = () => {
         setStarted(false);
         setActivePlayerSprites([]);
         setActiveEnemySprites([]);
+        // Clear any buffered spawns from this round
+        spawnBufferRef.current = [];
         for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
         enemySpawnTimeoutsRef.current = [];
         setEnemiesRemaining(0);
@@ -519,21 +531,28 @@ const page = () => {
           return next;
         });
       }
-      // Commit updated rosters
-      setActivePlayerSprites(alivePlayers);
-      setActiveEnemySprites(aliveEnemies);
+      // Commit updated rosters (or clear if wave finished)
+      if (waveCompletedRef.current) {
+        setActivePlayerSprites([]);
+        setActiveEnemySprites([]);
+      } else {
+        setActivePlayerSprites(alivePlayers);
+        setActiveEnemySprites(aliveEnemies);
+      }
     }, MOVE_INTERVAL_MS);
 
     return () => {
       clearInterval(id);
     };
-  }, [started, activePlayerSprites, activeEnemySprites]);
+  }, [started]);
 
   const scheduleWaveSpawns = React.useCallback(() => {
-    // Clear any previous scheduled timeouts and existing enemies before scheduling
+    // Clear any previous scheduled timeouts and existing rosters before scheduling
     for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
     enemySpawnTimeoutsRef.current = [];
     setActiveEnemySprites([]);
+    setActivePlayerSprites([]);
+    spawnBufferRef.current = [];
     waveCompletedRef.current = false;
 
     const totalWaves = waveEnemies?.length || 0;
