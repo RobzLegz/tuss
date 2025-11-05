@@ -7,7 +7,22 @@ const cogValueMap = {
   "-10": {
     file: "madars",
     price: 12,
-    points: 3,
+    points: 5,
+  },
+  "-11": {
+    file: "janka",
+    price: 15,
+    points: 6,
+  },
+  "-12": {
+    file: "roberts",
+    price: 20,
+    points: 7,
+  },
+  "-13": {
+    file: "ozols",
+    price: 40,
+    points: 10,
   },
   "1": {
     file: "cog",
@@ -20,11 +35,16 @@ const cogValueMap = {
 };
 
 const waveOptionMap = [
-  [-10, 1, -10],
+  [-10, 1, -11],
   [1, 1, 1],
   [1, 1, 1],
-  [1, -10, 1],
-  [1, -10, 1],
+  [1, -10, -12, 1, -11, 1],
+  [1, -10, -13, -13, -12, 1],
+  [1, -10, 1, -11, -12, 1],
+  [1, -10, 1, -11, -12, 1],
+  [1, -10, 1, -11, -12, 1],
+  [1, -10, 1, -11, -12, 1],
+  [1, -10, 1, -11, 1, 1],
 ];
 
 const ratio = 640 / 2000;
@@ -33,78 +53,25 @@ const COLUMNS = 6;
 const playerSpawnPosition = [(293 / 2) * ratio, 1550 * ratio];
 const enemySpawnPosition = [100 * ratio, 200 * ratio];
 
-const waveEnemies = [
-  [
-    {
-      enemy: "janka",
-      quantity: 3,
-      spawnDelay: 3,
-      speed: 30 * ratio,
-      hp: 3,
-      damage: 1,
-      reach: 30,
-      atckSpeed: 1,
-      reward: 9,
-    },
-  ],
-  [
-    {
-      enemy: "janka",
-      quantity: 6,
-      spawnDelay: 3,
-      speed: 30 * ratio,
-      hp: 3,
-      damage: 2,
-      reach: 30,
-      atckSpeed: 1,
-      reward: 9,
-    },
-  ],
-  [
-    {
-      enemy: "janka",
-      quantity: 2,
-      spawnDelay: 3,
-      speed: 30 * ratio,
-      hp: 3,
-      damage: 2,
-      reach: 30,
-      atckSpeed: 1,
-      reward: 9,
-    },
-    {
-      enemy: "zirnis",
-      quantity: 2,
-      spawnDelay: 3,
-      speed: 30 * ratio,
-      hp: 10,
-      damage: 2,
-      reach: 30,
-      atckSpeed: 1,
-      reward: 15,
-    },
-    {
-      enemy: "janka",
-      quantity: 2,
-      spawnDelay: 3,
-      speed: 30 * ratio,
-      hp: 3,
-      damage: 2,
-      reach: 30,
-      atckSpeed: 1,
-      reward: 9,
-    },
-  ],
-];
+const enemyMaxX = 100 * ratio;
+const playerMaxX = 100 * ratio;
 
 const playerSpriteStats = {
-  madars: { speed: 30 * ratio, hp: 5, damage: 2, reach: 30, atckSpeed: 1 },
+  madars: { speed: 15, hp: 9, damage: 3, reach: 30, atckSpeed: 1.5 },
+  janka: { speed: 15, hp: 10, damage: 4, reach: 30, atckSpeed: 2 },
+  roberts: { speed: 17, hp: 10, damage: 5, reach: 30, atckSpeed: 1 },
 };
 
 const page = () => {
+  const [baseHp, setBaseHp] = useState<number>(12);
+  const baseMaxHpRef = React.useRef<number>(12);
   const [wave, setWave] = useState<number>(1);
   const [coins, setCoins] = useState<number>(22);
   const [started, setStarted] = useState(false);
+  const [currentLevel, setCurrentLevel] = useState<number>(1);
+  const [waveEnemies, setWaveEnemies] = useState<any[][]>([]);
+  const [rewards, setRewards] = useState<{ coins: number; gems: number; deposits: number } | null>(null);
+  const [levelCompleted, setLevelCompleted] = useState<boolean>(false);
   const [cells, setCells] = useState<number[]>(
     Array.from({ length: 24 }).map((_, i) => (i === 9 ? -1 : 0))
   );
@@ -113,6 +80,7 @@ const page = () => {
     null
   );
   const [waveOptionUse, setWaveOptionUse] = useState<boolean[]>([]);
+  const [currentShopItems, setCurrentShopItems] = useState<number[]>([]);
   const [rotationAngles, setRotationAngles] = useState<number[]>(
     Array.from({ length: 24 }).map(() => 0)
   );
@@ -153,10 +121,55 @@ const page = () => {
   const playerIdRef = React.useRef(0);
   const enemyIdRef = React.useRef(0);
 
+  const getShopItems = React.useCallback((w: number) => {
+    const idx = Math.max(0, Math.min(w - 1, waveOptionMap.length - 1));
+    return waveOptionMap[idx] || [];
+  }, []);
+
   React.useEffect(() => {
-    // Reset availability each wave (new round)
-    setWaveOptionUse(Array(waveOptionMap[wave - 1].length).fill(false));
+    // Reset availability each wave (new round) and pick 3 random items from availability
+    const all = getShopItems(wave);
+    const pool = [...all];
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      const tmp = pool[i];
+      pool[i] = pool[j];
+      pool[j] = tmp;
+    }
+    const picked = pool.slice(0, Math.min(3, pool.length));
+    setCurrentShopItems(picked);
+    setWaveOptionUse(Array(picked.length).fill(false));
   }, [wave]);
+
+  // Load level from localStorage and fetch enemies/rewards JSON for that level
+  useEffect(() => {
+    const init = async () => {
+      try {
+        const stored = typeof window !== "undefined" ? window.localStorage.getItem("currentLevel") : null;
+        const lvl = stored ? Math.max(1, parseInt(stored, 10) || 1) : 1;
+        setCurrentLevel(lvl);
+        try {
+          const enemiesMod = await import(
+            /* webpackInclude: /\\d+\\/enemies\\.json$/ */ `@/src/data/levels/${lvl}/enemies.json`
+          );
+          setWaveEnemies(enemiesMod.default || enemiesMod);
+        } catch (e) {
+          const fallback = await import("@/src/data/levels/1/enemies.json");
+          setWaveEnemies(fallback.default || fallback);
+        }
+        try {
+          const rewardsMod = await import(
+            /* webpackInclude: /\\d+\\/rewards\\.json$/ */ `@/src/data/levels/${lvl}/rewards.json`
+          );
+          setRewards(rewardsMod.default || rewardsMod);
+        } catch (e) {
+          const fallbackR = await import("@/src/data/levels/1/rewards.json");
+          setRewards(fallbackR.default || fallbackR);
+        }
+      } catch {}
+    };
+    init();
+  }, []);
 
   useEffect(() => {
     if (!started) return;
@@ -205,6 +218,10 @@ const page = () => {
 
       const damageToPlayers: Record<string, number> = {};
       const damageToEnemies: Record<string, number> = {};
+      const crossedEnemyIds: string[] = [];
+      let crossedEnemyDamageTotal = 0;
+      const crossedPlayerIds: string[] = [];
+      const Y_TOL = 1;
 
       const inReach = (
         ax: number,
@@ -247,6 +264,14 @@ const page = () => {
           } else {
             p.x = p.x + p.speed * ratio;
           }
+          // remove players that cross the map limit immediately
+          if (
+            (p as any).id &&
+            p.x <= playerMaxX &&
+            Math.abs(p.y - playerSpawnPosition[1]) > Y_TOL
+          ) {
+            crossedPlayerIds.push((p as any).id);
+          }
         }
       }
 
@@ -279,16 +304,53 @@ const page = () => {
           } else {
             e.x = e.x + e.speed * ratio;
           }
+          // if an enemy reaches the base boundary, damage base and remove
+          if (
+            (e as any).id &&
+            e.x <= enemyMaxX &&
+            Math.abs(e.y - enemySpawnPosition[1]) > Y_TOL
+          ) {
+            crossedEnemyIds.push((e as any).id);
+            crossedEnemyDamageTotal += e.damage ?? 1;
+          }
         }
       }
 
-      // Apply pending damage
+      // Apply base HP loss for crossed enemies and remove them before combat resolution
+      if (crossedEnemyIds.length) {
+        if (crossedEnemyDamageTotal) {
+          setBaseHp((prev) => Math.max(0, prev - crossedEnemyDamageTotal));
+        }
+        for (let i = nextActiveEnemies.length - 1; i >= 0; i--) {
+          const eid = (nextActiveEnemies[i] as any).id;
+          if (eid && crossedEnemyIds.includes(eid)) {
+            nextActiveEnemies.splice(i, 1);
+          }
+        }
+      }
+      // Remove crossed players immediately
+      if (crossedPlayerIds.length) {
+        for (let i = nextActivePlayerSprites.length - 1; i >= 0; i--) {
+          const pid = (nextActivePlayerSprites[i] as any).id;
+          if (pid && crossedPlayerIds.includes(pid)) {
+            nextActivePlayerSprites.splice(i, 1);
+          }
+        }
+      }
+
+      // Apply pending damage using updated rosters
+      const enemiesByIdAfter: Record<string, any> = Object.fromEntries(
+        nextActiveEnemies.map((e: any) => [e.id, e])
+      );
+      const playersByIdAfter: Record<string, any> = Object.fromEntries(
+        nextActivePlayerSprites.map((p: any) => [p.id, p])
+      );
       for (const [enemyId, dmg] of Object.entries(damageToEnemies)) {
-        const e = enemiesById[enemyId];
+        const e = enemiesByIdAfter[enemyId];
         if (e) e.hp = Math.max(0, e.hp - dmg);
       }
       for (const [playerId, dmg] of Object.entries(damageToPlayers)) {
-        const p = playersById[playerId];
+        const p = playersByIdAfter[playerId];
         if (p) p.hp = Math.max(0, p.hp - dmg);
       }
 
@@ -305,25 +367,39 @@ const page = () => {
         if (e.targetId && !alivePlayerIds.has(e.targetId)) e.targetId = null;
       });
 
-      // Award coins for kills and progress wave
-      if (deadEnemies.length) {
-        const gained = deadEnemies.reduce(
-          (sum: number, e: any) => sum + (e.reward ?? 0),
-          0
-        );
-        if (gained) setCoins((prev) => prev + gained);
+      // Award coins for kills
+      const gained = deadEnemies.reduce(
+        (sum: number, e: any) => sum + (e.reward ?? 0),
+        0
+      );
+      if (gained) setCoins((prev) => prev + gained);
+
+      // Progress wave by counting both kills and crossed
+      const totalRemoved = deadEnemies.length + crossedEnemyIds.length;
+      if (totalRemoved) {
         setEnemiesRemaining((prev) => {
-          const next = Math.max(0, prev - deadEnemies.length);
+          const next = Math.max(0, prev - totalRemoved);
           if (next === 0) {
             setStarted(false);
             setActivePlayerSprites([]);
             setActiveEnemySprites([]);
-            setWave((w) => (w < waveEnemies.length ? w + 1 : w));
+            // Progress wave or finish level
+            if (wave < (waveEnemies?.length || 0)) {
+              setWave((w) => (w < (waveEnemies?.length || 0) ? w + 1 : w));
+            } else {
+              // Final wave completed
+              try {
+                if (typeof window !== "undefined") {
+                  window.localStorage.setItem("currentLevel", String(currentLevel));
+                }
+              } catch {}
+              setLevelCompleted(true);
+            }
           }
           return next;
         });
       }
-
+      // Commit updated rosters
       setActivePlayerSprites(alivePlayers);
       setActiveEnemySprites(aliveEnemies);
     }, MOVE_INTERVAL_MS);
@@ -339,8 +415,9 @@ const page = () => {
     enemySpawnTimeoutsRef.current = [];
     setActiveEnemySprites([]);
 
-    const waveIndex = Math.max(1, Math.min(wave, waveEnemies.length)) - 1;
-    const enemies = waveEnemies[waveIndex] || [];
+    const totalWaves = waveEnemies?.length || 0;
+    const waveIndex = Math.max(1, Math.min(wave, totalWaves)) - 1;
+    const enemies = totalWaves > 0 ? waveEnemies[waveIndex] || [] : [];
     let totalToSpawn = 0;
     for (const cfg of enemies) totalToSpawn += cfg.quantity ?? 0;
     setEnemiesRemaining(totalToSpawn);
@@ -351,13 +428,15 @@ const page = () => {
       for (let i = 0; i < (cfg.quantity ?? 0); i++) {
         const scheduleAt = cumulativeDelayMs;
         const timeoutId = setTimeout(() => {
+          const dx = Math.random() * 8; // nudge inside the map (avoid immediate boundary)
+          const dy = Math.random() * 16 - 8;
           setActiveEnemySprites((prev) => [
             ...prev,
             {
               id: `e-${++enemyIdRef.current}`,
               sprite: cfg.enemy,
-              x: enemySpawnPosition[0],
-              y: enemySpawnPosition[1],
+              x: enemySpawnPosition[0] + dx,
+              y: enemySpawnPosition[1] + dy,
               speed: cfg.speed,
               hp: cfg.hp,
               maxHp: cfg.hp,
@@ -374,7 +453,7 @@ const page = () => {
         cumulativeDelayMs += stepMs;
       }
     }
-  }, [wave]);
+  }, [wave, waveEnemies]);
 
   // Reset trigger/cog animation state when not started or on wave change
   useEffect(() => {
@@ -474,27 +553,36 @@ const page = () => {
         spawnBufferRef.current = [];
         setActivePlayerSprites((prev) => [
           ...prev,
-          ...toSpawn.map((sprite) => ({
-            id: `p-${++playerIdRef.current}`,
-            sprite,
-            x: playerSpawnPosition[0],
-            y: playerSpawnPosition[1],
-            speed:
-              playerSpriteStats[sprite as keyof typeof playerSpriteStats].speed,
-            hp: playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
-            maxHp:
-              playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
-            damage:
-              playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                .damage,
-            reach:
-              playerSpriteStats[sprite as keyof typeof playerSpriteStats].reach,
-            atckSpeed:
-              playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                .atckSpeed,
-            targetId: null,
-            nextAtkAt: 0,
-          })),
+          ...toSpawn.map((sprite) => {
+            const dx = Math.random() * 16 - 8;
+            const dy = Math.random() * 16 - 8;
+            const baseX = playerSpawnPosition[0] + dx;
+            const safeX = Math.max(playerMaxX + 1, baseX);
+            return {
+              id: `p-${++playerIdRef.current}`,
+              sprite,
+              x: safeX,
+              y: playerSpawnPosition[1] + dy,
+              speed:
+                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                  .speed,
+              hp: playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                .hp,
+              maxHp:
+                playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
+              damage:
+                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                  .damage,
+              reach:
+                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                  .reach,
+              atckSpeed:
+                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
+                  .atckSpeed,
+              targetId: null,
+              nextAtkAt: 0,
+            };
+          }),
         ]);
       }
     };
@@ -542,7 +630,7 @@ const page = () => {
                 setStarted(true);
                 scheduleWaveSpawns();
               }}
-              disabled={wave === 1 && coins > 11}
+              disabled={(wave === 1 && coins > 11) || (waveEnemies?.length || 0) === 0}
             >
               Start
             </button>
@@ -552,7 +640,7 @@ const page = () => {
           <div className="w-full flex flex-col flex-1 bg-black/60 rounded-2xl p-4 gap-4">
             <strong>Shop</strong>
             <div className="grid grid-cols-3 gap-4">
-              {waveOptionMap[wave - 1].map((value, i) => {
+              {currentShopItems.map((value, i) => {
                 const cog =
                   cogValueMap[value.toString() as keyof typeof cogValueMap];
                 const used = !!waveOptionUse[i];
@@ -614,35 +702,65 @@ const page = () => {
           </div>
         ) : null}
       </div>
-
-      <div
-        className="w-160 h-160 relative"
-        style={{
-          backgroundImage: "url('/resources/map.png')",
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-        }}
-      >
-        {activeEnemySprites.map((sprite, i) => (
-          <Image
-            key={`enemy-${i}`}
-            src={`/resources/sprites/${sprite.sprite}.png`}
-            alt="enemy"
-            width={200}
-            height={200}
-            className="object-contain absolute"
+      <div className="flex flex-col gap-4 w-160">
+        <div className="w-full relative border-2 rounded-2xl px-4 py-2 bg-black/60 text-white flex flex-col gap-2">
+          <div className="w-full flex items-center justify-between">
+            <span>
+              Round {wave}/{Math.max(1, waveEnemies?.length || 0)}
+            </span>
+            <strong>
+              HP {baseHp}/{baseMaxHpRef.current}
+            </strong>
+          </div>
+          <div
+            className="w-full"
             style={{
-              width: 200 * ratio,
-              height: 200 * ratio,
-              top: sprite.y,
-              right: sprite.x,
-              zIndex: 18,
-              pointerEvents: "none",
+              height: 10,
+              backgroundColor: "rgba(0,0,0,0.4)",
+              borderRadius: 6,
+              overflow: "hidden",
             }}
-          />
-        ))}
-        {activeEnemySprites.map((sprite, i) =>
-          sprite.hp < (sprite as any).maxHp ? (
+          >
+            <div
+              style={{
+                width:
+                  Math.max(0, Math.min(1, baseHp / baseMaxHpRef.current)) *
+                    100 +
+                  "%",
+                height: 10,
+                backgroundColor: "red",
+                transition: "width 0.2s ease",
+              }}
+            />
+          </div>
+        </div>
+        <div
+          className="w-160 h-160 relative"
+          style={{
+            backgroundImage: "url('/resources/map.png')",
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+          }}
+        >
+          {activeEnemySprites.map((sprite, i) => (
+            <Image
+              key={`enemy-${i}`}
+              src={`/resources/sprites/${sprite.sprite}.png`}
+              alt="enemy"
+              width={200}
+              height={200}
+              className="object-contain absolute"
+              style={{
+                width: 200 * ratio,
+                height: 200 * ratio,
+                top: sprite.y,
+                right: sprite.x,
+                zIndex: 18,
+                pointerEvents: "none",
+              }}
+            />
+          ))}
+          {activeEnemySprites.map((sprite, i) => (
             <div
               key={`enemy-hp-${i}`}
               className="absolute"
@@ -653,6 +771,8 @@ const page = () => {
                 right: sprite.x,
                 zIndex: 19,
                 backgroundColor: "rgba(0,0,0,0.4)",
+                borderRadius: 4,
+                overflow: "hidden",
               }}
             >
               <div
@@ -665,31 +785,30 @@ const page = () => {
                     (50 * ratio),
                   height: 6,
                   backgroundColor: "red",
+                  transition: "width 0.2s ease",
                 }}
               />
             </div>
-          ) : null
-        )}
-        {activePlayerSprites.map((sprite, i) => (
-          <Image
-            key={i}
-            src={`/resources/sprites/${sprite.sprite}.png`}
-            alt="sprite"
-            width={200}
-            height={200}
-            className="object-contain absolute"
-            style={{
-              width: 200 * ratio,
-              height: 200 * ratio,
-              top: sprite.y,
-              right: sprite.x,
-              zIndex: 20,
-              pointerEvents: "none",
-            }}
-          />
-        ))}
-        {activePlayerSprites.map((sprite, i) =>
-          (sprite as any).maxHp && sprite.hp < (sprite as any).maxHp ? (
+          ))}
+          {activePlayerSprites.map((sprite, i) => (
+            <Image
+              key={i}
+              src={`/resources/sprites/${sprite.sprite}.png`}
+              alt="sprite"
+              width={200}
+              height={200}
+              className="object-contain absolute"
+              style={{
+                width: 200 * ratio,
+                height: 200 * ratio,
+                top: sprite.y,
+                right: sprite.x,
+                zIndex: 20,
+                pointerEvents: "none",
+              }}
+            />
+          ))}
+          {activePlayerSprites.map((sprite, i) => (
             <div
               key={`player-hp-${i}`}
               className="absolute"
@@ -700,6 +819,8 @@ const page = () => {
                 right: sprite.x,
                 zIndex: 21,
                 backgroundColor: "rgba(0,0,0,0.4)",
+                borderRadius: 4,
+                overflow: "hidden",
               }}
             >
               <div
@@ -711,70 +832,108 @@ const page = () => {
                     ) *
                     (50 * ratio),
                   height: 6,
-                  backgroundColor: "#22c55e",
+                  backgroundColor: "red",
+                  transition: "width 0.2s ease",
                 }}
               />
             </div>
-          ) : null
-        )}
-        <div
-          className="absolute bg-red-500/50 border-2 border-black grid grid-cols-6 overflow-hidden"
-          style={{
-            width: 1200 * ratio,
-            height: 800 * ratio,
-            right: 200 * ratio,
-            bottom: 600 * ratio,
-            borderRadius: 50 * ratio,
-          }}
-        >
-          {cells.map((value, i) => {
-            const info = (cogValueMap as any)[value.toString()];
-            const points = info?.points as number | undefined;
-            const count = specialSpinCounts[i] || 0;
-            const tintRatio =
-              points && points > 1 ? Math.min(1, count / (points - 1)) : 0;
-            return (
-              <Cell
-                key={i}
-                value={value}
-                index={i}
-                rotationDeg={rotationAngles[i] || 0}
-                tintRatio={tintRatio}
-                onDropCog={(cellIndex) => {
-                  const droppedValue = draggingCogValue;
-                  if (droppedValue === null) return;
-                  const price =
-                    (
-                      cogValueMap[
-                        droppedValue.toString() as keyof typeof cogValueMap
-                      ] as any
-                    ).price ?? 0;
-                  if (coins < price) {
+          ))}
+          <div
+            className="absolute bg-red-500/50 border-2 border-black grid grid-cols-6 overflow-hidden"
+            style={{
+              width: 1200 * ratio,
+              height: 800 * ratio,
+              right: 200 * ratio,
+              bottom: 600 * ratio,
+              borderRadius: 50 * ratio,
+            }}
+          >
+            {cells.map((value, i) => {
+              const info = (cogValueMap as any)[value.toString()];
+              const points = info?.points as number | undefined;
+              const count = specialSpinCounts[i] || 0;
+              const tintRatio =
+                points && points > 1 ? Math.min(1, count / (points - 1)) : 0;
+              return (
+                <Cell
+                  key={i}
+                  value={value}
+                  index={i}
+                  rotationDeg={rotationAngles[i] || 0}
+                  tintRatio={tintRatio}
+                  onDropCog={(cellIndex) => {
+                    const droppedValue = draggingCogValue;
+                    if (droppedValue === null) return;
+                    const price =
+                      (
+                        cogValueMap[
+                          droppedValue.toString() as keyof typeof cogValueMap
+                        ] as any
+                      ).price ?? 0;
+                    if (coins < price) {
+                      setDraggingCogValue(null);
+                      setDraggingShopIndex(null);
+                      return;
+                    }
+                    setCells((prev) =>
+                      prev.map((v, idx) =>
+                        idx === cellIndex ? droppedValue : v
+                      )
+                    );
+                    setCoins((prev) => Math.max(0, prev - price));
+                    if (draggingShopIndex !== null) {
+                      setWaveOptionUse((prev) => {
+                        const next = prev.length
+                          ? [...prev]
+                          : Array(currentShopItems.length).fill(false);
+                        next[draggingShopIndex] = true;
+                        return next;
+                      });
+                    }
                     setDraggingCogValue(null);
                     setDraggingShopIndex(null);
-                    return;
-                  }
-                  setCells((prev) =>
-                    prev.map((v, idx) => (idx === cellIndex ? droppedValue : v))
-                  );
-                  setCoins((prev) => Math.max(0, prev - price));
-                  if (draggingShopIndex !== null) {
-                    setWaveOptionUse((prev) => {
-                      const next = prev.length
-                        ? [...prev]
-                        : Array(waveOptionMap[wave - 1].length).fill(false);
-                      next[draggingShopIndex] = true;
-                      return next;
-                    });
-                  }
-                  setDraggingCogValue(null);
-                  setDraggingShopIndex(null);
-                }}
-              />
-            );
-          })}
+                  }}
+                />
+              );
+            })}
+          </div>
         </div>
       </div>
+      {levelCompleted && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-auto bg-black/80 text-white rounded-2xl p-6 shadow-xl border border-white/10">
+            <div className="text-center mb-4">
+              <h2 className="text-2xl font-bold">Level {currentLevel} Completed!</h2>
+              <p className="text-white/80 mt-1">Rewards gained</p>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="flex flex-col items-center gap-2">
+                <Image src="/resources/coin.png" alt="coin" width={28} height={28} className="w-7 h-7" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Coins</div>
+                <div className="text-xl font-semibold">{rewards?.coins ?? 0}</div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-cyan-400/30 border border-cyan-300/40" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Gems</div>
+                <div className="text-xl font-semibold">{rewards?.gems ?? 0}</div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-amber-400/30 border border-amber-300/40" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Deposits</div>
+                <div className="text-xl font-semibold">{rewards?.deposits ?? 0}</div>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-center">
+              <button
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 transition-colors"
+                onClick={() => setLevelCompleted(false)}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
