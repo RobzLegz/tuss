@@ -379,7 +379,7 @@ const page = () => {
       if (totalRemoved) {
         setEnemiesRemaining((prev) => {
           const next = Math.max(0, prev - totalRemoved);
-          if (next === 0) {
+          if (prev > 0 && next === 0) {
             setStarted(false);
             setActivePlayerSprites([]);
             setActiveEnemySprites([]);
