@@ -254,7 +254,7 @@ const page = () => {
         <div className="w-full h-full flex flex-col gap-4">
           <div className="flex-1 bg-black/50 rounded-2xl flex flex-col items-center p-4 gap-2">
             <strong>Shop</strong>
-            <div className="grid grid-cols-2 gap-4 w-full">
+            <div className="grid grid-cols-2 gap-4 w-full max-h-full overflow-y-auto">
               {shopCharacters.map((character, i) => {
                 const characterData = characters?.find(
                   (c) => c.name === character
@@ -341,6 +341,54 @@ const page = () => {
                   </div>
                 );
               })}
+              <div className="bg-white rounded-lg border gap-2 flex flex-col items-center justify-end p-2 w-full h-full">
+                <img
+                  src="/resources/coin.png"
+                  alt="coin"
+                  className="w-12 h-12"
+                />
+                <small className="text-xs -my-1 text-gray-500 first-letter:uppercase">
+                  25 gold
+                </small>
+
+                <button
+                  className="w-full p-2 rounded-lg cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed text-black bg-amber-300 flex items-center justify-center gap-1"
+                  onClick={() => {
+                    setCoins(coins + 25);
+                    setGems(gems - 5);
+                    localStorage.setItem("coins", String(coins + 25));
+                    localStorage.setItem("gems", String(gems - 5));
+                  }}
+                  disabled={gems < 5}
+                >
+                  <img src="/resources/gem.png" alt="gem" className="w-4 h-4" />
+                  <strong>7</strong>
+                </button>
+              </div>
+              <div className="bg-white rounded-lg border gap-2 flex flex-col items-center justify-end p-2 w-full h-full">
+                <img
+                  src="/resources/coin.png"
+                  alt="coin"
+                  className="w-12 h-12"
+                />
+                <small className="text-xs -my-1 text-gray-500 first-letter:uppercase">
+                  50 gold
+                </small>
+
+                <button
+                  className="w-full p-2 rounded-lg cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed text-black bg-amber-300 flex items-center justify-center gap-1"
+                  onClick={() => {
+                    setCoins(coins + 50);
+                    setGems(gems - 5);
+                    localStorage.setItem("coins", String(coins + 50));
+                    localStorage.setItem("gems", String(gems - 5));
+                  }}
+                  disabled={gems < 5}
+                >
+                  <img src="/resources/gem.png" alt="gem" className="w-4 h-4" />
+                  <strong>10</strong>
+                </button>
+              </div>
             </div>
           </div>
           {/* <div className="flex-1 bg-black/50 rounded-2xl flex flex-col items-center p-4">

@@ -859,8 +859,8 @@ const page = () => {
             const baseStats =
               playerSpriteStats[sprite as keyof typeof playerSpriteStats];
             const level = levelByName.get(sprite) || 1;
-            const hp = baseStats.hp + (level - 1) + depositBoost.hp;
-            const damage = baseStats.damage + (level - 1) + depositBoost.damage;
+            const hp = baseStats.hp + (level - 1) * 2 + depositBoost.hp;
+            const damage = baseStats.damage + (level - 1) * 2 + depositBoost.damage;
 
             const upgrades = (spriteUpgradeMap as any)[sprite] as
               | string[]
