@@ -254,7 +254,7 @@ const page = () => {
         <div className="w-full h-full flex flex-col gap-4">
           <div className="flex-1 bg-black/50 rounded-2xl flex flex-col items-center p-4 gap-2">
             <strong>Shop</strong>
-            <div className="grid grid-cols-3 gap-4 w-full">
+            <div className="grid grid-cols-2 gap-4 w-full">
               {shopCharacters.map((character, i) => {
                 const characterData = characters?.find(
                   (c) => c.name === character
