@@ -746,18 +746,37 @@ const page = () => {
       const toSpawn = spawnBufferRef.current;
       if (toSpawn && toSpawn.length) {
         spawnBufferRef.current = [];
-        // Read character levels once per spawn batch
+        // Read character levels and deposit upgrades once per spawn batch
         let levelByName = new Map<string, number>();
+        let depositBoost = { hp: 0, damage: 0, speed: 0 } as {
+          hp: number;
+          damage: number;
+          speed: number;
+        };
         try {
           if (typeof window !== "undefined") {
-            const raw = window.localStorage.getItem("characters");
-            if (raw) {
-              const parsed = JSON.parse(raw) as {
+            const rawChars = window.localStorage.getItem("characters");
+            if (rawChars) {
+              const parsed = JSON.parse(rawChars) as {
                 name: string;
                 level: number;
               }[];
               parsed.forEach((c) => {
                 if (c?.name) levelByName.set(c.name, Math.max(1, c.level || 1));
+              });
+            }
+            const rawDeposits = window.localStorage.getItem("depositUpgrades");
+            if (rawDeposits) {
+              const parsedD = JSON.parse(rawDeposits) as {
+                name: string;
+                boost?: { hp?: number; damage?: number; speed?: number };
+              }[];
+              parsedD.forEach((u) => {
+                if (u?.boost?.hp) depositBoost.hp += Number(u.boost.hp) || 0;
+                if (u?.boost?.damage)
+                  depositBoost.damage += Number(u.boost.damage) || 0;
+                if (u?.boost?.speed)
+                  depositBoost.speed += Number(u.boost.speed) || 0;
               });
             }
           }
@@ -774,8 +793,8 @@ const page = () => {
             const baseStats =
               playerSpriteStats[sprite as keyof typeof playerSpriteStats];
             const level = levelByName.get(sprite) || 1;
-            const hp = baseStats.hp + (level - 1);
-            const damage = baseStats.damage + (level - 1);
+            const hp = baseStats.hp + (level - 1) + depositBoost.hp;
+            const damage = baseStats.damage + (level - 1) + depositBoost.damage;
 
             const upgrades = (spriteUpgradeMap as any)[sprite] as
               | string[]
@@ -791,7 +810,7 @@ const page = () => {
               displaySprite,
               x: safeX,
               y: playerSpawnPosition[1] + dy,
-              speed: baseStats.speed,
+              speed: baseStats.speed + depositBoost.speed,
               hp,
               maxHp: hp,
               damage,
@@ -1127,7 +1146,7 @@ const page = () => {
                 </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-cyan-400/30 border border-cyan-300/40" />
+                <img src="/resources/gem.png" alt="gem" className="w-7 h-7" />
                 <div className="text-sm uppercase tracking-wide text-white/70">
                   Gems
                 </div>
@@ -1136,7 +1155,7 @@ const page = () => {
                 </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-amber-400/30 border border-amber-300/40" />
+                <img src="/resources/deposit.png" alt="deposit" className="w-7 h-7" />
                 <div className="text-sm uppercase tracking-wide text-white/70">
                   Deposits
                 </div>
@@ -1170,12 +1189,13 @@ const page = () => {
                 <div className="text-xl font-semibold">{gameOverRewards.coins}</div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-7 h-7 rounded-full bg-cyan-400/30 border border-cyan-300/40" />
+              <img src="/resources/gem.png" alt="gem" className="w-7 h-7" />
+
                 <div className="text-sm uppercase tracking-wide text-white/70">Gems</div>
                 <div className="text-xl font-semibold">{gameOverRewards.gems}</div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <div className="w-7 h-7 rounded-md bg-amber-400/30 border border-amber-300/40" />
+                <img src="/resources/deposit.png" alt="deposit" className="w-7 h-7" />
                 <div className="text-sm uppercase tracking-wide text-white/70">Deposits</div>
                 <div className="text-xl font-semibold">{gameOverRewards.deposits}</div>
               </div>

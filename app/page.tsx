@@ -37,7 +37,7 @@ const page = () => {
           ķirsīti, kļūs par zelta depozītu pavēlnieku.
         </p>
 
-        <Link href="/game" className="text-lg underline">
+        <Link href="/home" className="text-lg underline">
           Sakt speli
         </Link>
       </div>

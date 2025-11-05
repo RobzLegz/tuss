@@ -310,7 +310,7 @@ const page = () => {
                     ) : null}
 
                     <button
-                      className="w-full p-2 rounded-lg cursor-pointer disabled:opacity-80 text-black bg-amber-300 flex items-center justify-center gap-1"
+                      className="w-full p-2 rounded-lg cursor-pointer disabled:opacity-80 disabled:cursor-not-allowed text-black bg-amber-300 flex items-center justify-center gap-1"
                       onClick={() => upgradeCharacter(character, price)}
                       disabled={coins < price}
                     >

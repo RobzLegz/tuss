@@ -1,330 +1,35 @@
 [
+  [ { "enemy": "toms", "quantity": 12, "spawnDelay": 1, "speed": 15, "hp": 11, "damage": 2, "reach": 30, "atckSpeed": 1, "reward": 1 } ],
+  [ { "enemy": "toms", "quantity": 14, "spawnDelay": 1, "speed": 16, "hp": 12, "damage": 2, "reach": 30, "atckSpeed": 1, "reward": 1 } ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 8,
-      "spawnDelay": 1,
-      "speed": 10,
-      "hp": 8,
-      "damage": 1,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    }
+    { "enemy": "toms", "quantity": 12, "spawnDelay": 1, "speed": 16, "hp": 12, "damage": 2, "reach": 30, "atckSpeed": 1, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 6, "spawnDelay": 1, "speed": 16, "hp": 18, "damage": 3, "reach": 30, "atckSpeed": 1, "reward": 3 }
   ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 12,
-      "spawnDelay": 1,
-      "speed": 12,
-      "hp": 8,
-      "damage": 1,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    }
+    { "enemy": "toms", "quantity": 14, "spawnDelay": 1, "speed": 17, "hp": 13, "damage": 3, "reach": 30, "atckSpeed": 1, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 8, "spawnDelay": 1, "speed": 17, "hp": 20, "damage": 4, "reach": 30, "atckSpeed": 1, "reward": 3 },
+    { "enemy": "ansons", "quantity": 3, "spawnDelay": 1, "speed": 17, "hp": 24, "damage": 4, "reach": 30, "atckSpeed": 1, "reward": 3 }
   ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 10,
-      "spawnDelay": 1,
-      "speed": 12,
-      "hp": 8,
-      "damage": 1,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 5,
-      "spawnDelay": 1,
-      "speed": 12,
-      "hp": 13,
-      "damage": 2,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    }
+    { "enemy": "toms", "quantity": 16, "spawnDelay": 1, "speed": 18, "hp": 14, "damage": 3, "reach": 30, "atckSpeed": 2, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 10, "spawnDelay": 1, "speed": 18, "hp": 22, "damage": 4, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "ansons", "quantity": 4, "spawnDelay": 1, "speed": 18, "hp": 26, "damage": 5, "reach": 30, "atckSpeed": 2, "reward": 3 }
   ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 12,
-      "spawnDelay": 1,
-      "speed": 14,
-      "hp": 8,
-      "damage": 2,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 6,
-      "spawnDelay": 1,
-      "speed": 14,
-      "hp": 15,
-      "damage": 3,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    }
+    { "enemy": "toms", "quantity": 18, "spawnDelay": 1, "speed": 19, "hp": 15, "damage": 4, "reach": 30, "atckSpeed": 2, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 12, "spawnDelay": 1, "speed": 19, "hp": 24, "damage": 5, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "ansons", "quantity": 5, "spawnDelay": 1, "speed": 19, "hp": 28, "damage": 6, "reach": 30, "atckSpeed": 2, "reward": 3 }
   ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 14,
-      "spawnDelay": 1,
-      "speed": 15,
-      "hp": 8,
-      "damage": 2,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 7,
-      "spawnDelay": 1,
-      "speed": 15,
-      "hp": 17,
-      "damage": 3,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 3,
-      "spawnDelay": 1,
-      "speed": 15,
-      "hp": 20,
-      "damage": 4,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    }
+    { "enemy": "toms", "quantity": 20, "spawnDelay": 1, "speed": 20, "hp": 16, "damage": 4, "reach": 30, "atckSpeed": 2, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 14, "spawnDelay": 1, "speed": 20, "hp": 26, "damage": 5, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "ansons", "quantity": 6, "spawnDelay": 1, "speed": 20, "hp": 32, "damage": 6, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "dzintars", "quantity": 2, "spawnDelay": 1, "speed": 20, "hp": 46, "damage": 8, "reach": 30, "atckSpeed": 2, "reward": 6 }
   ],
   [
-    {
-      "enemy": "toms",
-      "quantity": 16,
-      "spawnDelay": 1,
-      "speed": 16,
-      "hp": 10,
-      "damage": 3,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 10,
-      "spawnDelay": 1,
-      "speed": 16,
-      "hp": 20,
-      "damage": 4,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 4,
-      "spawnDelay": 1,
-      "speed": 16,
-      "hp": 24,
-      "damage": 5,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 4
-    }
-  ],
-  [
-    {
-      "enemy": "toms",
-      "quantity": 20,
-      "spawnDelay": 1,
-      "speed": 17,
-      "hp": 12,
-      "damage": 3,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 12,
-      "spawnDelay": 1,
-      "speed": 17,
-      "hp": 22,
-      "damage": 4,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 5,
-      "spawnDelay": 1,
-      "speed": 17,
-      "hp": 26,
-      "damage": 6,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "dzintars",
-      "quantity": 3,
-      "spawnDelay": 1,
-      "speed": 17,
-      "hp": 32,
-      "damage": 6,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 8
-    }
-  ],
-  [
-    {
-      "enemy": "toms",
-      "quantity": 22,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 13,
-      "damage": 4,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 14,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 24,
-      "damage": 5,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 6,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 28,
-      "damage": 6,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "dzintars",
-      "quantity": 4,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 36,
-      "damage": 7,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 8
-    }
-  ],
-  [
-    {
-      "enemy": "toms",
-      "quantity": 24,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 15,
-      "damage": 4,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 16,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 28,
-      "damage": 5,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 8,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 32,
-      "damage": 7,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "dzintars",
-      "quantity": 5,
-      "spawnDelay": 1,
-      "speed": 18,
-      "hp": 40,
-      "damage": 7,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 8
-    }
-  ],
-  [
-    {
-      "enemy": "toms",
-      "quantity": 26,
-      "spawnDelay": 1,
-      "speed": 20,
-      "hp": 16,
-      "damage": 5,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 2
-    },
-    {
-      "enemy": "zirnis",
-      "quantity": 18,
-      "spawnDelay": 1,
-      "speed": 20,
-      "hp": 32,
-      "damage": 6,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "ansons",
-      "quantity": 10,
-      "spawnDelay": 1,
-      "speed": 20,
-      "hp": 36,
-      "damage": 7,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 4
-    },
-    {
-      "enemy": "dzintars",
-      "quantity": 6,
-      "spawnDelay": 1,
-      "speed": 20,
-      "hp": 46,
-      "damage": 8,
-      "reach": 30,
-      "atckSpeed": 2,
-      "reward": 8
-    }
+    { "enemy": "toms", "quantity": 22, "spawnDelay": 1, "speed": 21, "hp": 17, "damage": 5, "reach": 30, "atckSpeed": 2, "reward": 1 },
+    { "enemy": "zirnis", "quantity": 16, "spawnDelay": 1, "speed": 21, "hp": 28, "damage": 6, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "ansons", "quantity": 7, "spawnDelay": 1, "speed": 21, "hp": 34, "damage": 7, "reach": 30, "atckSpeed": 2, "reward": 3 },
+    { "enemy": "dzintars", "quantity": 3, "spawnDelay": 1, "speed": 21, "hp": 50, "damage": 9, "reach": 30, "atckSpeed": 2, "reward": 6 }
   ]
 ]
