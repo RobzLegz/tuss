@@ -87,6 +87,12 @@ const page = () => {
     deposits: number;
   } | null>(null);
   const [levelCompleted, setLevelCompleted] = useState<boolean>(false);
+  const [gameOver, setGameOver] = useState<boolean>(false);
+  const [gameOverRewards, setGameOverRewards] = useState<{
+    coins: number;
+    gems: number;
+    deposits: number;
+  }>({ coins: 0, gems: 0, deposits: 0 });
   const [cells, setCells] = useState<number[]>(
     Array.from({ length: 24 }).map((_, i) => (i === 9 ? -1 : 0))
   );
@@ -102,6 +108,10 @@ const page = () => {
   const [specialSpinCounts, setSpecialSpinCounts] = useState<number[]>(
     Array.from({ length: 24 }).map(() => 0)
   );
+  const baseHpRef = React.useRef<number>(baseHp);
+  useEffect(() => {
+    baseHpRef.current = baseHp;
+  }, [baseHp]);
   const spawnBufferRef = React.useRef<string[]>([]);
   const enemySpawnTimeoutsRef = React.useRef<number[]>([]);
   const waveCompletedRef = React.useRef<boolean>(false);
@@ -371,16 +381,60 @@ const page = () => {
         }
       }
 
-      // Apply base HP loss for crossed enemies and remove them before combat resolution
+      // Apply base HP loss when any enemy crosses (only -1 regardless of count),
+      // remove crossed enemies, and trigger game over if base HP hits 0
       if (crossedEnemyIds.length) {
-        if (crossedEnemyDamageTotal) {
-          setBaseHp((prev) => Math.max(0, prev - crossedEnemyDamageTotal));
-        }
+        const nextHp = Math.max(0, baseHpRef.current - 1);
+        setBaseHp(nextHp);
         for (let i = nextActiveEnemies.length - 1; i >= 0; i--) {
           const eid = (nextActiveEnemies[i] as any).id;
           if (eid && crossedEnemyIds.includes(eid)) {
             nextActiveEnemies.splice(i, 1);
           }
+        }
+        if (nextHp <= 0 && !waveCompletedRef.current) {
+          waveCompletedRef.current = true;
+          setStarted(false);
+          setActivePlayerSprites([]);
+          setActiveEnemySprites([]);
+          spawnBufferRef.current = [];
+          for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
+          enemySpawnTimeoutsRef.current = [];
+          setEnemiesRemaining(0);
+          try {
+            const totalWaves = waveEnemies?.length || 0;
+            const survived = Math.max(0, Math.min(totalWaves, wave - 1));
+            const percent = totalWaves > 0 ? survived / totalWaves : 0;
+            const rw = rewards || { coins: 0, gems: 0, deposits: 0 };
+            const partial = {
+              coins: Math.floor((rw.coins || 0) * percent),
+              gems: Math.floor((rw.gems || 0) * percent),
+              deposits: Math.floor((rw.deposits || 0) * percent),
+            };
+            // Persist rewards (keep earned coins plus partial end reward)
+            if (typeof window !== "undefined") {
+              const prevCoins =
+                parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
+              const prevGems =
+                parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
+              const prevDeposits =
+                parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+              window.localStorage.setItem(
+                "coins",
+                String(prevCoins + coins + (partial.coins || 0))
+              );
+              window.localStorage.setItem(
+                "gems",
+                String(prevGems + (partial.gems || 0))
+              );
+              window.localStorage.setItem(
+                "deposits",
+                String(prevDeposits + (partial.deposits || 0))
+              );
+            }
+            setGameOverRewards(partial);
+          } catch {}
+          setGameOver(true);
         }
       }
       // Remove crossed players immediately
@@ -554,6 +608,7 @@ const page = () => {
     setActivePlayerSprites([]);
     spawnBufferRef.current = [];
     waveCompletedRef.current = false;
+    setGameOver(false);
 
     const totalWaves = waveEnemies?.length || 0;
     const waveIndex = Math.max(1, Math.min(wave, totalWaves)) - 1;
@@ -1088,6 +1143,41 @@ const page = () => {
                 <div className="text-xl font-semibold">
                   {rewards?.deposits ?? 0}
                 </div>
+              </div>
+            </div>
+            <div className="mt-6 flex items-center justify-center">
+              <button
+                className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 transition-colors"
+                onClick={() => router.replace("/home")}
+              >
+                Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {gameOver && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="w-full max-w-md mx-auto bg-black/80 text-white rounded-2xl p-6 shadow-xl border border-white/10">
+            <div className="text-center mb-4">
+              <h2 className="text-2xl font-bold">Game Over</h2>
+              <p className="text-white/80 mt-1">Rewards gained</p>
+            </div>
+            <div className="grid grid-cols-3 gap-4 text-center">
+              <div className="flex flex-col items-center gap-2">
+                <img src="/resources/coin.png" alt="coin" className="w-7 h-7" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Coins</div>
+                <div className="text-xl font-semibold">{gameOverRewards.coins}</div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-7 h-7 rounded-full bg-cyan-400/30 border border-cyan-300/40" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Gems</div>
+                <div className="text-xl font-semibold">{gameOverRewards.gems}</div>
+              </div>
+              <div className="flex flex-col items-center gap-2">
+                <div className="w-7 h-7 rounded-md bg-amber-400/30 border border-amber-300/40" />
+                <div className="text-sm uppercase tracking-wide text-white/70">Deposits</div>
+                <div className="text-xl font-semibold">{gameOverRewards.deposits}</div>
               </div>
             </div>
             <div className="mt-6 flex items-center justify-center">
