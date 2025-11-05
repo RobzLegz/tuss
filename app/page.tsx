@@ -5,7 +5,7 @@ import Link from "next/link";
 const page = () => {
   return (
     <div className="w-full min-h-screen flex justify-center bg-black px-4 py-20">
-      <div className="w-full h-full max-w-4xl flex flex-col gap-4">
+      <div className="w-full h-full max-w-4xl flex flex-col gap-4 text-white">
         <h1>Tuss</h1>
         <p>
           Ansona banda — riktīgi dranduļeti, kas sēž savā šķūnī un grauž naglas

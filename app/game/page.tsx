@@ -100,6 +100,9 @@ const page = () => {
   const [draggingShopIndex, setDraggingShopIndex] = useState<number | null>(
     null
   );
+  const [draggingFromCellIndex, setDraggingFromCellIndex] = useState<
+    number | null
+  >(null);
   const [waveOptionUse, setWaveOptionUse] = useState<boolean[]>([]);
   const [currentShopItems, setCurrentShopItems] = useState<number[]>([]);
   const [rotationAngles, setRotationAngles] = useState<number[]>(
@@ -238,9 +241,11 @@ const page = () => {
     const MOVE_INTERVAL_MS = 100;
 
     const id = setInterval(() => {
-      const nextActivePlayerSprites = activePlayerSpritesRef.current.map((sprite) => {
-        return { ...sprite };
-      });
+      const nextActivePlayerSprites = activePlayerSpritesRef.current.map(
+        (sprite) => {
+          return { ...sprite };
+        }
+      );
       // Clone enemies
       const nextActiveEnemies = activeEnemySpritesRef.current.map((sprite) => ({
         ...sprite,
@@ -418,7 +423,8 @@ const page = () => {
               const prevGems =
                 parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
               const prevDeposits =
-                parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+                parseInt(window.localStorage.getItem("deposits") || "0", 10) ||
+                0;
               window.localStorage.setItem(
                 "coins",
                 String(prevCoins + coins + (partial.coins || 0))
@@ -844,7 +850,7 @@ const page = () => {
         backgroundSize: "cover",
         backgroundPosition: "center",
       }}
-      className="w-full h-screen overflow-hidden flex items-center justify-start gap-8"
+      className="w-full h-screen overflow-hidden flex items-center justify-start gap-8 text-white"
     >
       <div className="flex flex-col w-80 h-full p-4 gap-4">
         <div className="w-full flex justify-between">
@@ -1091,6 +1097,27 @@ const page = () => {
                   onDropCog={(cellIndex) => {
                     const droppedValue = draggingCogValue;
                     if (droppedValue === null) return;
+                    // Disallow dropping on triggers (-1) or already occupied cells (non-zero)
+                    if (cells[cellIndex] !== 0) {
+                      setDraggingCogValue(null);
+                      setDraggingShopIndex(null);
+                      setDraggingFromCellIndex(null);
+                      return;
+                    }
+                    // If dragging from another cell, move without cost
+                    if (draggingFromCellIndex !== null) {
+                      setCells((prev) =>
+                        prev.map((v, idx) => {
+                          if (idx === cellIndex) return droppedValue;
+                          if (idx === draggingFromCellIndex) return 0;
+                          return v;
+                        })
+                      );
+                      setDraggingCogValue(null);
+                      setDraggingShopIndex(null);
+                      setDraggingFromCellIndex(null);
+                      return;
+                    }
                     const price =
                       (
                         cogValueMap[
@@ -1119,6 +1146,15 @@ const page = () => {
                     }
                     setDraggingCogValue(null);
                     setDraggingShopIndex(null);
+                  }}
+                  canDrag={!started}
+                  onDragStartFromCell={(idx, val) => {
+                    setDraggingCogValue(val);
+                    setDraggingFromCellIndex(idx);
+                  }}
+                  onDragEndFromCell={() => {
+                    setDraggingCogValue(null);
+                    setDraggingFromCellIndex(null);
                   }}
                 />
               );
@@ -1155,7 +1191,11 @@ const page = () => {
                 </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <img src="/resources/deposit.png" alt="deposit" className="w-7 h-7" />
+                <img
+                  src="/resources/deposit.png"
+                  alt="deposit"
+                  className="w-7 h-7"
+                />
                 <div className="text-sm uppercase tracking-wide text-white/70">
                   Deposits
                 </div>
@@ -1185,19 +1225,35 @@ const page = () => {
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="flex flex-col items-center gap-2">
                 <img src="/resources/coin.png" alt="coin" className="w-7 h-7" />
-                <div className="text-sm uppercase tracking-wide text-white/70">Coins</div>
-                <div className="text-xl font-semibold">{gameOverRewards.coins}</div>
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Coins
+                </div>
+                <div className="text-xl font-semibold">
+                  {gameOverRewards.coins}
+                </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-              <img src="/resources/gem.png" alt="gem" className="w-7 h-7" />
+                <img src="/resources/gem.png" alt="gem" className="w-7 h-7" />
 
-                <div className="text-sm uppercase tracking-wide text-white/70">Gems</div>
-                <div className="text-xl font-semibold">{gameOverRewards.gems}</div>
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Gems
+                </div>
+                <div className="text-xl font-semibold">
+                  {gameOverRewards.gems}
+                </div>
               </div>
               <div className="flex flex-col items-center gap-2">
-                <img src="/resources/deposit.png" alt="deposit" className="w-7 h-7" />
-                <div className="text-sm uppercase tracking-wide text-white/70">Deposits</div>
-                <div className="text-xl font-semibold">{gameOverRewards.deposits}</div>
+                <img
+                  src="/resources/deposit.png"
+                  alt="deposit"
+                  className="w-7 h-7"
+                />
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Deposits
+                </div>
+                <div className="text-xl font-semibold">
+                  {gameOverRewards.deposits}
+                </div>
               </div>
             </div>
             <div className="mt-6 flex items-center justify-center">
@@ -1223,12 +1279,18 @@ const Cell = ({
   rotationDeg,
   tintRatio,
   onDropCog,
+  canDrag,
+  onDragStartFromCell,
+  onDragEndFromCell,
 }: {
   index: number;
   value: number;
   rotationDeg: number;
   tintRatio: number;
   onDropCog: (index: number) => void;
+  canDrag: boolean;
+  onDragStartFromCell: (index: number, value: number) => void;
+  onDragEndFromCell: () => void;
 }) => {
   const [isOver, setIsOver] = React.useState(false);
 
@@ -1247,6 +1309,18 @@ const Cell = ({
       }}
       onDragEnter={() => setIsOver(true)}
       onDragLeave={() => setIsOver(false)}
+      draggable={canDrag && value !== 0 && value !== -1}
+      onDragStart={(e) => {
+        if (!(canDrag && value !== 0 && value !== -1)) return;
+        try {
+          e.dataTransfer.setData("text/plain", String(value));
+          e.dataTransfer.effectAllowed = "move";
+        } catch {}
+        onDragStartFromCell(index, value);
+      }}
+      onDragEnd={() => {
+        onDragEndFromCell();
+      }}
       onDrop={(e) => {
         e.preventDefault();
         setIsOver(false);

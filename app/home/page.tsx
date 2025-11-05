@@ -15,6 +15,17 @@ const page = () => {
   const [gems, setGems] = useState(0);
   const [deposits, setDeposits] = useState(0);
   const [level, setLevel] = useState(1);
+  const [gameUpgrades, setGameUpgrades] = useState<{
+    rotationSpeedLevel: number;
+    damageBoostLevel: number;
+    hpBoostLevel: number;
+    coinBoostLevel: number;
+  }>({
+    rotationSpeedLevel: 1,
+    damageBoostLevel: 1,
+    hpBoostLevel: 1,
+    coinBoostLevel: 1,
+  });
   const [characters, setCharacters] = useState<
     {
       name: string;
@@ -116,6 +127,12 @@ const page = () => {
     const level = localStorage.getItem("currentLevel");
     const characters = localStorage.getItem("characters");
     const depositUpgrades = localStorage.getItem("depositUpgrades");
+    const gameUpgrades = localStorage.getItem("gameUpgrades");
+    if (gameUpgrades) {
+      setGameUpgrades(JSON.parse(gameUpgrades));
+    } else {
+      localStorage.setItem("gameUpgrades", JSON.stringify(gameUpgrades));
+    }
     if (depositUpgrades) {
       setDepositUpgrades(JSON.parse(depositUpgrades));
     }
@@ -211,7 +228,7 @@ const page = () => {
 
   return (
     <div
-      className="w-full h-screen flex flex-col p-4 items-center gap-4"
+      className="w-full h-screen flex flex-col p-4 items-center gap-4 text-white"
       style={{
         backgroundImage: "url('/resources/bg.png')",
         backgroundSize: "cover",
