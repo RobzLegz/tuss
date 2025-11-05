@@ -2,10 +2,23 @@
   [
     {
       "enemy": "toms",
-      "quantity": 3,
+      "quantity": 4,
       "spawnDelay": 1,
       "speed": 10,
       "hp": 2,
+      "damage": 1,
+      "reach": 30,
+      "atckSpeed": 1,
+      "reward": 2
+    }
+  ],
+  [
+    {
+      "enemy": "toms",
+      "quantity": 8,
+      "spawnDelay": 1,
+      "speed": 12,
+      "hp": 3,
       "damage": 1,
       "reach": 30,
       "atckSpeed": 1,
@@ -23,23 +36,10 @@
       "reach": 30,
       "atckSpeed": 1,
       "reward": 2
-    }
-  ],
-  [
-    {
-      "enemy": "toms",
-      "quantity": 4,
-      "spawnDelay": 1,
-      "speed": 12,
-      "hp": 3,
-      "damage": 1,
-      "reach": 30,
-      "atckSpeed": 1,
-      "reward": 2
     },
     {
       "enemy": "zirnis",
-      "quantity": 2,
+      "quantity": 3,
       "spawnDelay": 1,
       "speed": 12,
       "hp": 8,

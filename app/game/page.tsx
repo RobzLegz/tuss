@@ -1,8 +1,8 @@
 "use client";
 
- 
 import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import { spriteUpgradeMap } from "../home/page";
 
 const cogValueMap = {
   "-10": {
@@ -36,17 +36,25 @@ const cogValueMap = {
 };
 
 const waveOptionMap = [
-  [-10, 1, -11],
+  [-10, 1, -11, -10],
   [1, 1, 1],
-  [1, 1, 1],
-  [1, -10, -12, 1, -11, 1],
-  [1, -10, -13, -13, -12, 1],
-  [1, -10, 1, -11, -12, 1],
-  [1, -10, 1, -11, -12, 1],
-  [1, -10, 1, -11, -12, 1],
-  [1, -10, 1, -11, -12, 1],
-  [1, -10, 1, -11, 1, 1],
+  [1, 1, 1, 1, -10, -11],
+  [1, -10, -12, 1, -11, 1, 1],
+  [1, -10, -13, -13, -12, 1, 1],
+  [1, -10, 1, -11, -12, 1, 1],
+  [1, -10, 1, -11, -12, 1, 1],
+  [1, -10, 1, -11, -12, 1, 1],
+  [1, -10, 1, -11, -12, 1, 1],
+  [1, -10, 1, -11, -12, 1, 1],
 ];
+
+// Map special negative codes to character names used in localStorage
+const codeToCharacterName: Record<number, string> = {
+  [-10]: "madars",
+  [-11]: "janka",
+  [-12]: "roberts",
+  [-13]: "ozols",
+};
 
 const ratio = 640 / 2000;
 const COLUMNS = 6;
@@ -116,6 +124,7 @@ const page = () => {
   const [activePlayerSprites, setActivePlayerSprites] = useState<
     {
       sprite: string;
+      displaySprite?: string;
       x: number;
       y: number;
       speed: number;
@@ -137,7 +146,29 @@ const page = () => {
   React.useEffect(() => {
     // Reset availability each wave (new round) and pick 3 random items from availability
     const all = getShopItems(wave);
-    const pool = [...all];
+
+    // Filter out character items that the user hasn't unlocked (level >= 1)
+    let unlockedNames = new Set<string>();
+    try {
+      if (typeof window !== "undefined") {
+        const raw = window.localStorage.getItem("characters");
+        if (raw) {
+          const parsed = JSON.parse(raw) as { name: string; level: number }[];
+          parsed.forEach((c) => {
+            if ((c?.level || 0) >= 1 && c?.name) unlockedNames.add(c.name);
+          });
+        }
+      }
+    } catch {}
+
+    const pool = all.filter((code) => {
+      // Non-character items (e.g., cog=1, trigger=-1) always allowed
+      if (code >= 0 || code === -1) return true;
+      const name = (codeToCharacterName as any)[code];
+      // If it's an unknown special code, exclude by default
+      if (!name) return false;
+      return unlockedNames.has(name);
+    });
     for (let i = pool.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       const tmp = pool[i];
@@ -366,14 +397,30 @@ const page = () => {
         } else {
           try {
             if (typeof window !== "undefined") {
-              const prevCoins = parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
-              const prevGems = parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
-              const prevDeposits = parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+              const prevCoins =
+                parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
+              const prevGems =
+                parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
+              const prevDeposits =
+                parseInt(window.localStorage.getItem("deposits") || "0", 10) ||
+                0;
               const rw = rewards || { coins: 0, gems: 0, deposits: 0 };
-              window.localStorage.setItem("coins", String(prevCoins + coins + (rw.coins || 0)));
-              window.localStorage.setItem("gems", String(prevGems + (rw.gems || 0)));
-              window.localStorage.setItem("deposits", String(prevDeposits + (rw.deposits || 0)));
-              window.localStorage.setItem("currentLevel", String(currentLevel + 1));
+              window.localStorage.setItem(
+                "coins",
+                String(prevCoins + (rw.coins || 0))
+              );
+              window.localStorage.setItem(
+                "gems",
+                String(prevGems + (rw.gems || 0))
+              );
+              window.localStorage.setItem(
+                "deposits",
+                String(prevDeposits + (rw.deposits || 0))
+              );
+              window.localStorage.setItem(
+                "currentLevel",
+                String(currentLevel + 1)
+              );
             }
           } catch {}
           setLevelCompleted(true);
@@ -436,14 +483,34 @@ const page = () => {
               // Final wave completed
               try {
                 if (typeof window !== "undefined") {
-                  const prevCoins = parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
-                  const prevGems = parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
-                  const prevDeposits = parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+                  const prevCoins =
+                    parseInt(window.localStorage.getItem("coins") || "0", 10) ||
+                    0;
+                  const prevGems =
+                    parseInt(window.localStorage.getItem("gems") || "0", 10) ||
+                    0;
+                  const prevDeposits =
+                    parseInt(
+                      window.localStorage.getItem("deposits") || "0",
+                      10
+                    ) || 0;
                   const rw = rewards || { coins: 0, gems: 0, deposits: 0 };
-                  window.localStorage.setItem("coins", String(prevCoins + coins + (rw.coins || 0)));
-                  window.localStorage.setItem("gems", String(prevGems + (rw.gems || 0)));
-                  window.localStorage.setItem("deposits", String(prevDeposits + (rw.deposits || 0)));
-                  window.localStorage.setItem("currentLevel", String(currentLevel + 1));
+                  window.localStorage.setItem(
+                    "coins",
+                    String(prevCoins + coins + (rw.coins || 0))
+                  );
+                  window.localStorage.setItem(
+                    "gems",
+                    String(prevGems + (rw.gems || 0))
+                  );
+                  window.localStorage.setItem(
+                    "deposits",
+                    String(prevDeposits + (rw.deposits || 0))
+                  );
+                  window.localStorage.setItem(
+                    "currentLevel",
+                    String(currentLevel + 1)
+                  );
                 }
               } catch {}
               setLevelCompleted(true);
@@ -605,6 +672,23 @@ const page = () => {
       const toSpawn = spawnBufferRef.current;
       if (toSpawn && toSpawn.length) {
         spawnBufferRef.current = [];
+        // Read character levels once per spawn batch
+        let levelByName = new Map<string, number>();
+        try {
+          if (typeof window !== "undefined") {
+            const raw = window.localStorage.getItem("characters");
+            if (raw) {
+              const parsed = JSON.parse(raw) as {
+                name: string;
+                level: number;
+              }[];
+              parsed.forEach((c) => {
+                if (c?.name) levelByName.set(c.name, Math.max(1, c.level || 1));
+              });
+            }
+          }
+        } catch {}
+
         setActivePlayerSprites((prev) => [
           ...prev,
           ...toSpawn.map((sprite) => {
@@ -612,27 +696,33 @@ const page = () => {
             const dy = Math.random() * 16 - 8;
             const baseX = playerSpawnPosition[0] + dx;
             const safeX = Math.max(playerMaxX + 1, baseX);
+
+            const baseStats =
+              playerSpriteStats[sprite as keyof typeof playerSpriteStats];
+            const level = levelByName.get(sprite) || 1;
+            const hp = baseStats.hp + (level - 1);
+            const damage = baseStats.damage + (level - 1);
+
+            const upgrades = (spriteUpgradeMap as any)[sprite] as
+              | string[]
+              | undefined;
+            const maxIdx = Math.max(0, (upgrades?.length || 1) - 1);
+            const idx = Math.max(0, Math.min(level - 1, maxIdx));
+            const displaySprite =
+              upgrades && upgrades.length ? upgrades[idx] : sprite;
+
             return {
               id: `p-${++playerIdRef.current}`,
               sprite,
+              displaySprite,
               x: safeX,
               y: playerSpawnPosition[1] + dy,
-              speed:
-                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                  .speed,
-              hp: playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                .hp,
-              maxHp:
-                playerSpriteStats[sprite as keyof typeof playerSpriteStats].hp,
-              damage:
-                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                  .damage,
-              reach:
-                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                  .reach,
-              atckSpeed:
-                playerSpriteStats[sprite as keyof typeof playerSpriteStats]
-                  .atckSpeed,
+              speed: baseStats.speed,
+              hp,
+              maxHp: hp,
+              damage,
+              reach: baseStats.reach,
+              atckSpeed: baseStats.atckSpeed,
               targetId: null,
               nextAtkAt: 0,
             };
@@ -666,11 +756,7 @@ const page = () => {
       <div className="flex flex-col w-80 h-full p-4 gap-4">
         <div className="w-full flex justify-between">
           <div className="bg-black/60 rounded-2xl gap-2 px-4 py-2 flex items-center">
-            <img
-              src="/resources/coin.png"
-              alt="cog"
-              className="w-6 h-6"
-            />
+            <img src="/resources/coin.png" alt="cog" className="w-6 h-6" />
 
             <strong>{coins}</strong>
           </div>
@@ -841,7 +927,9 @@ const page = () => {
           {activePlayerSprites.map((sprite, i) => (
             <img
               key={i}
-              src={`/resources/sprites/${sprite.sprite}.png`}
+              src={`/resources/sprites/${
+                (sprite as any).displaySprite || sprite.sprite
+              }.png`}
               alt="sprite"
               className="object-contain absolute"
               style={{
@@ -956,11 +1044,7 @@ const page = () => {
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="flex flex-col items-center gap-2">
-                <img
-                  src="/resources/coin.png"
-                  alt="coin"
-                  className="w-7 h-7"
-                />
+                <img src="/resources/coin.png" alt="coin" className="w-7 h-7" />
                 <div className="text-sm uppercase tracking-wide text-white/70">
                   Coins
                 </div>
