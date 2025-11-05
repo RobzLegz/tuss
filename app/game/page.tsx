@@ -1,6 +1,7 @@
 "use client";
 
-import Image from "next/image";
+ 
+import { useRouter } from "next/navigation";
 import React, { useEffect, useState } from "react";
 
 const cogValueMap = {
@@ -60,9 +61,11 @@ const playerSpriteStats = {
   madars: { speed: 15, hp: 9, damage: 3, reach: 30, atckSpeed: 1.5 },
   janka: { speed: 15, hp: 10, damage: 4, reach: 30, atckSpeed: 2 },
   roberts: { speed: 17, hp: 10, damage: 5, reach: 30, atckSpeed: 1 },
+  ozols: { speed: 19, hp: 11, damage: 6, reach: 32, atckSpeed: 1 },
 };
 
 const page = () => {
+  const router = useRouter();
   const [baseHp, setBaseHp] = useState<number>(12);
   const baseMaxHpRef = React.useRef<number>(12);
   const [wave, setWave] = useState<number>(1);
@@ -70,7 +73,11 @@ const page = () => {
   const [started, setStarted] = useState(false);
   const [currentLevel, setCurrentLevel] = useState<number>(1);
   const [waveEnemies, setWaveEnemies] = useState<any[][]>([]);
-  const [rewards, setRewards] = useState<{ coins: number; gems: number; deposits: number } | null>(null);
+  const [rewards, setRewards] = useState<{
+    coins: number;
+    gems: number;
+    deposits: number;
+  } | null>(null);
   const [levelCompleted, setLevelCompleted] = useState<boolean>(false);
   const [cells, setCells] = useState<number[]>(
     Array.from({ length: 24 }).map((_, i) => (i === 9 ? -1 : 0))
@@ -89,6 +96,7 @@ const page = () => {
   );
   const spawnBufferRef = React.useRef<string[]>([]);
   const enemySpawnTimeoutsRef = React.useRef<number[]>([]);
+  const waveCompletedRef = React.useRef<boolean>(false);
   const [enemiesRemaining, setEnemiesRemaining] = useState<number>(0);
   const [activeEnemySprites, setActiveEnemySprites] = useState<
     {
@@ -145,7 +153,10 @@ const page = () => {
   useEffect(() => {
     const init = async () => {
       try {
-        const stored = typeof window !== "undefined" ? window.localStorage.getItem("currentLevel") : null;
+        const stored =
+          typeof window !== "undefined"
+            ? window.localStorage.getItem("currentLevel")
+            : null;
         const lvl = stored ? Math.max(1, parseInt(stored, 10) || 1) : 1;
         setCurrentLevel(lvl);
         try {
@@ -233,6 +244,8 @@ const page = () => {
         return Math.abs(ax - bx) <= reach && Math.abs(ay - by) <= reach;
       };
 
+      let playerReachedEnemyBase = false;
+
       // Acquire targets and move/attack for players
       for (const p of nextActivePlayerSprites as any[]) {
         let targetId = p.targetId as string | null;
@@ -271,6 +284,7 @@ const page = () => {
             Math.abs(p.y - playerSpawnPosition[1]) > Y_TOL
           ) {
             crossedPlayerIds.push((p as any).id);
+            playerReachedEnemyBase = true;
           }
         }
       }
@@ -297,7 +311,7 @@ const page = () => {
           }
         } else {
           // move
-          if (e.y > 1450 * ratio) {
+          if (e.y > 1550 * ratio) {
             e.x = e.x - e.speed * ratio;
           } else if (e.x > 1600 * ratio) {
             e.y = e.y + e.speed * ratio;
@@ -335,6 +349,34 @@ const page = () => {
           if (pid && crossedPlayerIds.includes(pid)) {
             nextActivePlayerSprites.splice(i, 1);
           }
+        }
+      }
+
+      // If any player reached enemy base, finish the wave immediately
+      if (playerReachedEnemyBase && !waveCompletedRef.current) {
+        waveCompletedRef.current = true;
+        setStarted(false);
+        setActivePlayerSprites([]);
+        setActiveEnemySprites([]);
+        for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
+        enemySpawnTimeoutsRef.current = [];
+        setEnemiesRemaining(0);
+        if (wave < (waveEnemies?.length || 0)) {
+          setWave((w) => (w < (waveEnemies?.length || 0) ? w + 1 : w));
+        } else {
+          try {
+            if (typeof window !== "undefined") {
+              const prevCoins = parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
+              const prevGems = parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
+              const prevDeposits = parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+              const rw = rewards || { coins: 0, gems: 0, deposits: 0 };
+              window.localStorage.setItem("coins", String(prevCoins + coins + (rw.coins || 0)));
+              window.localStorage.setItem("gems", String(prevGems + (rw.gems || 0)));
+              window.localStorage.setItem("deposits", String(prevDeposits + (rw.deposits || 0)));
+              window.localStorage.setItem("currentLevel", String(currentLevel + 1));
+            }
+          } catch {}
+          setLevelCompleted(true);
         }
       }
 
@@ -379,10 +421,14 @@ const page = () => {
       if (totalRemoved) {
         setEnemiesRemaining((prev) => {
           const next = Math.max(0, prev - totalRemoved);
-          if (prev > 0 && next === 0) {
+          if (prev > 0 && next === 0 && !waveCompletedRef.current) {
+            waveCompletedRef.current = true;
             setStarted(false);
             setActivePlayerSprites([]);
             setActiveEnemySprites([]);
+            // clear any remaining scheduled spawns just in case
+            for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
+            enemySpawnTimeoutsRef.current = [];
             // Progress wave or finish level
             if (wave < (waveEnemies?.length || 0)) {
               setWave((w) => (w < (waveEnemies?.length || 0) ? w + 1 : w));
@@ -390,7 +436,14 @@ const page = () => {
               // Final wave completed
               try {
                 if (typeof window !== "undefined") {
-                  window.localStorage.setItem("currentLevel", String(currentLevel));
+                  const prevCoins = parseInt(window.localStorage.getItem("coins") || "0", 10) || 0;
+                  const prevGems = parseInt(window.localStorage.getItem("gems") || "0", 10) || 0;
+                  const prevDeposits = parseInt(window.localStorage.getItem("deposits") || "0", 10) || 0;
+                  const rw = rewards || { coins: 0, gems: 0, deposits: 0 };
+                  window.localStorage.setItem("coins", String(prevCoins + coins + (rw.coins || 0)));
+                  window.localStorage.setItem("gems", String(prevGems + (rw.gems || 0)));
+                  window.localStorage.setItem("deposits", String(prevDeposits + (rw.deposits || 0)));
+                  window.localStorage.setItem("currentLevel", String(currentLevel + 1));
                 }
               } catch {}
               setLevelCompleted(true);
@@ -414,6 +467,7 @@ const page = () => {
     for (const tid of enemySpawnTimeoutsRef.current) clearTimeout(tid);
     enemySpawnTimeoutsRef.current = [];
     setActiveEnemySprites([]);
+    waveCompletedRef.current = false;
 
     const totalWaves = waveEnemies?.length || 0;
     const waveIndex = Math.max(1, Math.min(wave, totalWaves)) - 1;
@@ -612,11 +666,9 @@ const page = () => {
       <div className="flex flex-col w-80 h-full p-4 gap-4">
         <div className="w-full flex justify-between">
           <div className="bg-black/60 rounded-2xl gap-2 px-4 py-2 flex items-center">
-            <Image
+            <img
               src="/resources/coin.png"
               alt="cog"
-              width={20}
-              height={20}
               className="w-6 h-6"
             />
 
@@ -630,7 +682,9 @@ const page = () => {
                 setStarted(true);
                 scheduleWaveSpawns();
               }}
-              disabled={(wave === 1 && coins > 11) || (waveEnemies?.length || 0) === 0}
+              disabled={
+                (wave === 1 && coins > 11) || (waveEnemies?.length || 0) === 0
+              }
             >
               Start
             </button>
@@ -677,20 +731,16 @@ const page = () => {
                         setDraggingShopIndex(null);
                       }}
                     >
-                      <Image
+                      <img
                         src={`/resources/cogs/${cog.file}.png`}
                         alt="cog"
-                        width={50}
-                        height={50}
                         draggable={false}
                       />
                     </div>
                     <div className="flex items-center justify-center">
-                      <Image
+                      <img
                         src="/resources/coin.png"
                         alt="cog"
-                        width={20}
-                        height={20}
                         className="w-4 h-4"
                       />
                       <strong>{cog.price}</strong>
@@ -743,12 +793,10 @@ const page = () => {
           }}
         >
           {activeEnemySprites.map((sprite, i) => (
-            <Image
+            <img
               key={`enemy-${i}`}
               src={`/resources/sprites/${sprite.sprite}.png`}
               alt="enemy"
-              width={200}
-              height={200}
               className="object-contain absolute"
               style={{
                 width: 200 * ratio,
@@ -791,12 +839,10 @@ const page = () => {
             </div>
           ))}
           {activePlayerSprites.map((sprite, i) => (
-            <Image
+            <img
               key={i}
               src={`/resources/sprites/${sprite.sprite}.png`}
               alt="sprite"
-              width={200}
-              height={200}
               className="object-contain absolute"
               style={{
                 width: 200 * ratio,
@@ -903,30 +949,48 @@ const page = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="w-full max-w-md mx-auto bg-black/80 text-white rounded-2xl p-6 shadow-xl border border-white/10">
             <div className="text-center mb-4">
-              <h2 className="text-2xl font-bold">Level {currentLevel} Completed!</h2>
+              <h2 className="text-2xl font-bold">
+                Level {currentLevel} Completed!
+              </h2>
               <p className="text-white/80 mt-1">Rewards gained</p>
             </div>
             <div className="grid grid-cols-3 gap-4 text-center">
               <div className="flex flex-col items-center gap-2">
-                <Image src="/resources/coin.png" alt="coin" width={28} height={28} className="w-7 h-7" />
-                <div className="text-sm uppercase tracking-wide text-white/70">Coins</div>
-                <div className="text-xl font-semibold">{rewards?.coins ?? 0}</div>
+                <img
+                  src="/resources/coin.png"
+                  alt="coin"
+                  className="w-7 h-7"
+                />
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Coins
+                </div>
+                <div className="text-xl font-semibold">
+                  {rewards?.coins ?? 0}
+                </div>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="w-7 h-7 rounded-full bg-cyan-400/30 border border-cyan-300/40" />
-                <div className="text-sm uppercase tracking-wide text-white/70">Gems</div>
-                <div className="text-xl font-semibold">{rewards?.gems ?? 0}</div>
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Gems
+                </div>
+                <div className="text-xl font-semibold">
+                  {rewards?.gems ?? 0}
+                </div>
               </div>
               <div className="flex flex-col items-center gap-2">
                 <div className="w-7 h-7 rounded-md bg-amber-400/30 border border-amber-300/40" />
-                <div className="text-sm uppercase tracking-wide text-white/70">Deposits</div>
-                <div className="text-xl font-semibold">{rewards?.deposits ?? 0}</div>
+                <div className="text-sm uppercase tracking-wide text-white/70">
+                  Deposits
+                </div>
+                <div className="text-xl font-semibold">
+                  {rewards?.deposits ?? 0}
+                </div>
               </div>
             </div>
             <div className="mt-6 flex items-center justify-center">
               <button
                 className="px-4 py-2 rounded-xl bg-green-500 hover:bg-green-600 transition-colors"
-                onClick={() => setLevelCompleted(false)}
+                onClick={() => router.replace("/home")}
               >
                 Continue
               </button>
@@ -977,14 +1041,12 @@ const Cell = ({
       }}
     >
       {value ? (
-        <Image
+        <img
           src={`/resources/cogs/${
             (cogValueMap[value.toString() as keyof typeof cogValueMap] as any)
               .file
           }.png`}
           alt="cog"
-          width={100}
-          height={100}
           className={"absolute top-1/2 left-1/2 pointer-events-none"}
           style={{
             width: 200 * ratio,
