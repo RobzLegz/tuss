@@ -72,6 +72,72 @@ const playerSpriteStats = {
   ozols: { speed: 19, hp: 11, damage: 6, reach: 32, atckSpeed: 1 },
 };
 
+// Golden-ratio-based procedural enemy generator
+const PHI = (1 + Math.sqrt(5)) / 2; // ~1.618
+type EnemyType = "toms" | "zirnis" | "ansons" | "dzintars";
+const enemyBaseStats: Record<EnemyType, { hp: number; damage: number; speed: number; reward: number }> = {
+  toms: { hp: 2, damage: 1, speed: 10, reward: 1 },
+  zirnis: { hp: 8, damage: 2, speed: 12, reward: 3 },
+  ansons: { hp: 16, damage: 4, speed: 16, reward: 3 },
+  dzintars: { hp: 24, damage: 5, speed: 17, reward: 6 },
+};
+const enemyBaseQuantity: Record<EnemyType, number> = {
+  toms: 5,
+  zirnis: 2,
+  ansons: 1,
+  dzintars: 1,
+};
+function permittedEnemiesForLevel(level: number): EnemyType[] {
+  if (level <= 1) return ["toms"];
+  if (level <= 3) return ["toms", "zirnis"]; // introduce zirnis at 2
+  if (level <= 5) return ["toms", "zirnis", "ansons"]; // introduce ansons at 4
+  return ["toms", "zirnis", "ansons", "dzintars"]; // introduce dzintars at 6+
+}
+function generateLevelEnemies(level: number): any[][] {
+  const waves = level <= 4 ? 5 : level <= 6 ? 6 : 7; // first 4 => 5 waves, then up to max 7
+  const types = permittedEnemiesForLevel(level);
+  const result: any[][] = [];
+  for (let w = 0; w < waves; w++) {
+    const wave: any[] = [];
+    // Difficulty scaling using PHI^x
+    const levelFactor = Math.pow(PHI, Math.max(0, level - 1) * 0.35);
+    const waveFactor = Math.pow(PHI, w * 0.22);
+    const difficulty = levelFactor * waveFactor;
+    // Compose wave: always include toms, and mix in others progressively
+    const orderedTypes = types.slice().sort((a, b) => {
+      const order: EnemyType[] = ["toms", "zirnis", "ansons", "dzintars"];
+      return order.indexOf(a) - order.indexOf(b);
+    });
+    for (const t of orderedTypes) {
+      const base = enemyBaseStats[t];
+      const qtyBase = enemyBaseQuantity[t];
+      const quantity = Math.max(1, Math.round(qtyBase * difficulty));
+      const hp = Math.max(1, Math.round(base.hp * (1 + (difficulty - 1) * 1.1)));
+      const damage = Math.max(1, Math.round(base.damage * (1 + (difficulty - 1) * 0.8)));
+      const speed = Math.max(base.speed, Math.round(base.speed * (1 + (difficulty - 1) * 0.15)));
+      const atckSpeed = difficulty > 2.2 ? 2 : 1; // modest step up
+      const reward = base.reward; // keep rewards conservative (already reduced globally)
+      // Minor composition control: for early waves, avoid spawning too many heavies
+      if ((t === "ansons" || t === "dzintars") && w < 2) {
+        if (quantity > 2) continue; // skip heavy types in first waves
+      }
+      wave.push({
+        enemy: t,
+        quantity,
+        spawnDelay: 1,
+        speed,
+        hp,
+        damage,
+        reach: 30,
+        atckSpeed,
+        reward,
+      });
+    }
+    result.push(wave);
+  }
+  return result;
+}
+
 const page = () => {
   const router = useRouter();
   const [baseHp, setBaseHp] = useState<number>(12);
@@ -213,15 +279,9 @@ const page = () => {
             : null;
         const lvl = stored ? Math.max(1, parseInt(stored, 10) || 1) : 1;
         setCurrentLevel(lvl);
-        try {
-          const enemiesMod = await import(
-            /* webpackInclude: /\\d+\\/enemies\\.json$/ */ `@/src/data/levels/${lvl}/enemies.json`
-          );
-          setWaveEnemies(enemiesMod.default || enemiesMod);
-        } catch (e) {
-          const fallback = await import("@/src/data/levels/1/enemies.json");
-          setWaveEnemies(fallback.default || fallback);
-        }
+        // Generate waves procedurally using golden-ratio scaling
+        const generated = generateLevelEnemies(lvl);
+        setWaveEnemies(generated);
         try {
           const rewardsMod = await import(
             /* webpackInclude: /\\d+\\/rewards\\.json$/ */ `@/src/data/levels/${lvl}/rewards.json`
