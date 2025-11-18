@@ -138,6 +138,28 @@ function generateLevelEnemies(level: number): any[][] {
   return result;
 }
 
+function generateLevelRewards(level: number, waves: any[][]): {
+  coins: number;
+  gems: number;
+  deposits: number;
+} {
+  // Sum total base enemy rewards across all waves
+  let baseSum = 0;
+  for (const wave of waves) {
+    for (const entry of wave) {
+      const qty = Number(entry?.quantity ?? 0);
+      const rew = Number(entry?.reward ?? 0);
+      baseSum += qty * rew;
+    }
+  }
+  // Golden-ratio scaling with level; gentle ramp to avoid inflation
+  const levelCoef = Math.pow(PHI, Math.max(0, level - 1) * 0.15);
+  const coins = Math.max(0, Math.floor(baseSum * 0.5 * levelCoef));
+  const gems = Math.max(0, Math.floor(coins * 0.12));
+  const deposits = Math.max(0, Math.floor(coins * 0.28));
+  return { coins, gems, deposits };
+}
+
 const page = () => {
   const router = useRouter();
   const [baseHp, setBaseHp] = useState<number>(12);
@@ -177,6 +199,7 @@ const page = () => {
   const [specialSpinCounts, setSpecialSpinCounts] = useState<number[]>(
     Array.from({ length: 24 }).map(() => 0)
   );
+  const [speedMultiplier, setSpeedMultiplier] = useState<number>(1); // 1x, 2x, 3x
   const baseHpRef = React.useRef<number>(baseHp);
   useEffect(() => {
     baseHpRef.current = baseHp;
@@ -282,15 +305,9 @@ const page = () => {
         // Generate waves procedurally using golden-ratio scaling
         const generated = generateLevelEnemies(lvl);
         setWaveEnemies(generated);
-        try {
-          const rewardsMod = await import(
-            /* webpackInclude: /\\d+\\/rewards\\.json$/ */ `@/src/data/levels/${lvl}/rewards.json`
-          );
-          setRewards(rewardsMod.default || rewardsMod);
-        } catch (e) {
-          const fallbackR = await import("@/src/data/levels/1/rewards.json");
-          setRewards(fallbackR.default || fallbackR);
-        }
+        // Generate rewards based on difficulty and composition
+        const dynRewards = generateLevelRewards(lvl, generated);
+        setRewards(dynRewards);
       } catch {}
     };
     init();
@@ -382,16 +399,18 @@ const page = () => {
           if (now >= (p.nextAtkAt as number)) {
             damageToEnemies[target.id] =
               (damageToEnemies[target.id] || 0) + p.damage;
-            p.nextAtkAt = now + 1000 / Math.max(0.001, p.atckSpeed);
+            p.nextAtkAt =
+              now + (1000 / Math.max(0.001, p.atckSpeed)) / Math.max(1, speedMultiplier);
           }
         } else {
           // no target: move using existing simple pathing
+          const step = p.speed * ratio * Math.max(1, speedMultiplier);
           if (p.y < 230 * ratio) {
-            p.x = p.x - p.speed * ratio;
+            p.x = p.x - step;
           } else if (p.x > 1600 * ratio) {
-            p.y = p.y - p.speed * ratio;
+            p.y = p.y - step;
           } else {
-            p.x = p.x + p.speed * ratio;
+            p.x = p.x + step;
           }
           // remove players that cross the map limit immediately
           if (
@@ -423,16 +442,18 @@ const page = () => {
           if (now >= (e.nextAtkAt as number)) {
             damageToPlayers[target.id] =
               (damageToPlayers[target.id] || 0) + e.damage;
-            e.nextAtkAt = now + 1000 / Math.max(0.001, e.atckSpeed);
+            e.nextAtkAt =
+              now + (1000 / Math.max(0.001, e.atckSpeed)) / Math.max(1, speedMultiplier);
           }
         } else {
           // move
+          const step = e.speed * ratio * Math.max(1, speedMultiplier);
           if (e.y > 1550 * ratio) {
-            e.x = e.x - e.speed * ratio;
+            e.x = e.x - step;
           } else if (e.x > 1600 * ratio) {
-            e.y = e.y + e.speed * ratio;
+            e.y = e.y + step;
           } else {
-            e.x = e.x + e.speed * ratio;
+            e.x = e.x + step;
           }
           // if an enemy reaches the base boundary, damage base and remove
           if (
@@ -685,7 +706,10 @@ const page = () => {
 
     let cumulativeDelayMs = 0;
     for (const cfg of enemies) {
-      const stepMs = Math.max(1, Math.floor((cfg.spawnDelay ?? 0) * 1000));
+      const stepMs = Math.max(
+        1,
+        Math.floor(((cfg.spawnDelay ?? 0) * 1000) / Math.max(1, speedMultiplier))
+      );
       for (let i = 0; i < (cfg.quantity ?? 0); i++) {
         const scheduleAt = cumulativeDelayMs;
         const timeoutId = setTimeout(() => {
@@ -899,9 +923,9 @@ const page = () => {
       phase = (phase + 1) % 4;
       setTriggerPhase(phase);
       rotateStep(phase);
-    }, PHASE_INTERVAL_MS);
+    }, Math.max(60, PHASE_INTERVAL_MS / Math.max(1, speedMultiplier)));
     return () => clearInterval(id);
-  }, [started, cells]);
+  }, [started, cells, speedMultiplier]);
 
   return (
     <div
@@ -916,24 +940,36 @@ const page = () => {
         <div className="w-full flex justify-between">
           <div className="bg-black/60 rounded-2xl gap-2 px-4 py-2 flex items-center">
             <img src="/resources/coin.png" alt="cog" className="w-6 h-6" />
-
             <strong>{coins}</strong>
           </div>
-
-          {!started && (
+          <div className="flex items-center gap-2">
             <button
-              className="bg-green-500 rounded-2xl px-4 py-2 cursor-pointer disabled:opacity-80"
-              onClick={() => {
-                setStarted(true);
-                scheduleWaveSpawns();
-              }}
-              disabled={
-                (wave === 1 && coins > 11) || (waveEnemies?.length || 0) === 0
+              className="bg-indigo-500 rounded-2xl px-3 py-2 cursor-pointer"
+              onClick={() =>
+                setSpeedMultiplier((prev) => {
+                  const next = (prev % 3) + 1;
+                  return next;
+                })
               }
+              title="Toggle speed 1x/2x/3x"
             >
-              Start
+              {speedMultiplier}x
             </button>
-          )}
+            {!started && (
+              <button
+                className="bg-green-500 rounded-2xl px-4 py-2 cursor-pointer disabled:opacity-80"
+                onClick={() => {
+                  setStarted(true);
+                  scheduleWaveSpawns();
+                }}
+                disabled={
+                  (wave === 1 && coins > 11) || (waveEnemies?.length || 0) === 0
+                }
+              >
+                Start
+              </button>
+            )}
+          </div>
         </div>
         {!started ? (
           <div className="w-full flex flex-col flex-1 bg-black/60 rounded-2xl p-4 gap-4">
